@@ -1,0 +1,14 @@
+[package]
+authors = ["William Hunter Patton <pattonw@hhmi.org>"]
+name = "mwatershed"
+version = "0.1.0"
+description = "A rusty mutex watershed"
+readme = "README.rst"
+edition = "2018"
+
+[dependencies]
+pyo3 = { git = "https://github.com/PyO3/pyo3", features = ["extension-module"] }
+
+[lib]
+name = "mwatershed"
+crate-type = ["cdylib"]
