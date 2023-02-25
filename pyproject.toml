@@ -7,7 +7,7 @@ authors = [{name="William Hunter Patton", email= "pattonw@hhmi.org"}]
 name = "mwatershed"
 version = "0.1.0"
 description = "A rusty mutex watershed"
-readme = "README.rst"
+readme = "README.md"
 
 requires-python = ">=3.6"
 classifiers = [
