@@ -148,7 +148,10 @@ fn agglom<'py>(
         1 => agglomerate::<1>(&affinities, offsets, edges, seeds),
         2 => agglomerate::<2>(&affinities, offsets, edges, seeds),
         3 => agglomerate::<3>(&affinities, offsets, edges, seeds),
-        _ => panic!["Only 1-3 dimensional arrays supported"],
+        4 => agglomerate::<4>(&affinities, offsets, edges, seeds),
+        5 => agglomerate::<5>(&affinities, offsets, edges, seeds),
+        6 => agglomerate::<6>(&affinities, offsets, edges, seeds),
+        _ => panic!["Only 1-6 dimensional arrays supported"],
     };
     Ok(result.into_pyarray(_py))
 }

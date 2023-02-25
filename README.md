@@ -15,7 +15,8 @@
 
 ### Features
 
-A mutex watershed implementation
+* A mutex watershed implementation for affinities
+* Should handle up to 6 dimensional arrays of fragments (7 dimensions if you include offsets in affinities) but only tested on 2 and 3 dimensions
 
 ### Usage
 
