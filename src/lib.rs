@@ -134,8 +134,8 @@ fn agglom<'py>(
     affinities: &PyArrayDyn<f64>,
     offsets: Vec<Vec<usize>>,
     bias: Option<f64>,
-    edges: Option<Vec<(usize, usize, f64)>>,
     seeds: Option<&PyArrayDyn<usize>>,
+    edges: Option<Vec<(usize, usize, f64)>>,
 ) -> PyResult<&'py PyArrayDyn<usize>> {
     let affinities = unsafe { affinities.as_array() }.to_owned();
     let seeds = unsafe { seeds.expect("Seeds not provided!").as_array() }.to_owned();
