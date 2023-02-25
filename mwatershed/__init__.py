@@ -6,6 +6,6 @@ __email__ = """pattonw@hhmi.org"""
 __version__ = """0.1.0"""
 __version_info__ = tuple(int(n) for n in __version__.split('.'))
 
-from .mwatershed import get_42
+from .mwatershed import agglom
 
-__all__ = ["get_42"]
+__all__ = ["agglom"]

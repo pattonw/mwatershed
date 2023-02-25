@@ -1,24 +1,69 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
-"""Tests for `mwatershed` package."""
-
+import numpy as np
 import pytest
 
-# from mwatershed import mwatershed
 import mwatershed
 
 
-@pytest.fixture
-def response():
-    """Sample pytest fixture.
+def test_agglom_3d():
+    nodes = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], dtype=np.uint64)
+    offsets = [(0, 0, 1), (0, 1, 0), (1, 0, 0)]
+    affinities = np.array(
+        [
+            [[[1, 0], [0, 0]], [[0, 0], [1, 0]]],
+            [[[1, 0], [0, 0]], [[0, 1], [0, 0]]],
+            [[[1, 0], [0, 1]], [[0, 0], [0, 0]]],
+        ],
+        dtype=float,
+    )
+    # 8 nodes. connecting edges:
+    # 1-2, 1-3, 1-7, 4-8, 6-8, 7-8
+    # components: [(1,2,3,7),(4,6,7,8)]
 
-    See more at: http://doc.pytest.org/en/latest/fixture.html
-    """
-    # import requests
-    # return requests.get('https://github.com/audreyr/cookiecutter-pypackage')
+    components = mwatershed.agglom(affinities, offsets, seeds=nodes)
+
+    assert set(np.unique(components)) == set([1, 4])
+
+    assert (components == 1).sum() == 4
+    assert (components == 4).sum() == 4
 
 
-def test_content(response):
-    """Sample pytest test function with the pytest fixture as an argument."""
-    assert mwatershed.get_42() == 42
+def test_agglom_2d():
+    nodes = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.uint64)
+    offsets = [(0, 1), (1, 0)]
+    affinities = np.array(
+        [[[0, 1, 0], [0, 1, 0], [0, 1, 0]], [[0, 0, 0], [1, 1, 1], [0, 0, 0]]],
+        dtype=float,
+    )
+    # 9 nodes. connecting edges:
+    # 2-3, 5-6, 8-9, 4-7, 5-8, 6-9
+    # components: [(1,),(2,3),(4,7),(5,6,8,9)]
+
+    components = mwatershed.agglom(affinities, offsets, seeds=nodes)
+
+    assert set(np.unique(components)) == set([1, 2, 4, 5])
+
+    assert (components == 1).sum() == 1
+    assert (components == 2).sum() == 2
+    assert (components == 4).sum() == 2
+    assert (components == 5).sum() == 4
+
+
+def test_agglom_2d_with_extra_edges():
+    nodes = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.uint64)
+    offsets = [(0, 1), (1, 0)]
+    affinities = np.array(
+        [[[0, 1, 0], [0, 1, 0], [0, 1, 0]], [[0, 0, 0], [1, 1, 1], [0, 0, 0]]],
+        dtype=float,
+    )
+    edges = [(1, 9, 1)]
+    # 9 nodes. connecting edges:
+    # 2-3, 5-6, 8-9, 4-7, 5-8, 6-9
+    # components: [(1,),(2,3),(4,7),(5,6,8,9)]
+
+    components = mwatershed.agglom(affinities, offsets, seeds=nodes, edges=edges)
+
+    assert set(np.unique(components)) == set([1, 2, 4])
+
+    assert (components == 1).sum() == 5
+    assert (components == 2).sum() == 2
+    assert (components == 4).sum() == 2
