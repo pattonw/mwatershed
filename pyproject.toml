@@ -30,10 +30,8 @@ dependencies = [
 dev = [
     "bumpversion",
     "wheel",
-    "watchdog",
-    "flake8",
-    "tox",
-    "coverage",
+    "ruff",
+    "black",
     "Sphinx",
     "twine",
     "pytest",

@@ -50,6 +50,8 @@ fn agglomerate<const D: usize>(
         sorted_edges.push(edge);
     });
 
+    let num_nodes = seeds.iter().max().unwrap();
+
     affinities.indexed_iter().for_each(|(ind, aff)| {
         let (offset_indices, u_index) = get_dims::<D>(ind, 1);
         let offset_ind = *offset_indices.get(0).unwrap();
@@ -78,50 +80,63 @@ fn agglomerate<const D: usize>(
         };
     });
 
-    let mut node_to_cluster = HashMap::new();
-    let mut cluster_to_nodes = HashMap::new();
-    let mut unique_clusters = HashSet::new();
+    let mut node_to_cluster: Vec<usize> = (0..(num_nodes + 1)).into_iter().collect();
+    let mut cluster_to_nodes: Vec<Vec<usize>> = (0..(num_nodes + 1))
+        .into_iter()
+        .map(|indx| vec![indx])
+        .collect();
+    let mut mutexes: Vec<HashSet<usize>> = (0..(num_nodes + 1))
+        .into_iter()
+        .map(|_| HashSet::new())
+        .collect();
 
     sorted_edges.drain_sorted().for_each(|edge| {
         let AgglomEdge(_aff, pos, u, v) = edge;
-        let u_cluster_id = *node_to_cluster.get(&u).unwrap_or(&u);
-        let v_cluster_id = *node_to_cluster.get(&v).unwrap_or(&v);
+        let u_cluster_id = *node_to_cluster.get(u).unwrap_or(&u);
+        let v_cluster_id = *node_to_cluster.get(v).unwrap_or(&v);
 
-        match pos {
-            true => {
-                if !(unique_clusters.contains(&u_cluster_id)
-                    && unique_clusters.contains(&v_cluster_id))
-                {
-                    let new_id = *vec![u, v, u_cluster_id, v_cluster_id].iter().min().unwrap();
-                    let mut u_cluster_nodes = cluster_to_nodes
-                        .remove(&u_cluster_id)
-                        .unwrap_or(HashSet::from([u_cluster_id]));
-                    let v_cluster_nodes = cluster_to_nodes
-                        .remove(&v_cluster_id)
-                        .unwrap_or(HashSet::from([v_cluster_id]));
-                    if !(u == new_id) {
-                        u_cluster_nodes.iter().for_each(|node| {
-                            node_to_cluster.insert(*node, new_id);
-                        })
+        // println!("pos: {}, u: {}, u_cluster_id: {}, v: {}, v_cluster_id: {}, node_to_cluster: {:?}, cluster_to_nodes: {:?}", pos, u, u_cluster_id, v, v_cluster_id, node_to_cluster, cluster_to_nodes);
+
+        let (new_id, old_id) = match u_cluster_id < v_cluster_id {
+            true => (u_cluster_id, v_cluster_id),
+            false => (v_cluster_id, u_cluster_id),
+        };
+
+        if new_id != old_id {
+            let mutex_nodes = &mutexes[new_id];
+            if !(mutex_nodes.contains(&old_id)) {
+                match pos {
+                    true => {
+                        // update cluster ids
+                        let old_cluster_nodes =
+                            std::mem::replace(&mut cluster_to_nodes[old_id], vec![]);
+                        old_cluster_nodes.iter().for_each(|node| {
+                            node_to_cluster[*node] = new_id;
+                        });
+                        let new_cluster_nodes = cluster_to_nodes.get_mut(new_id).unwrap();
+                        new_cluster_nodes.extend(old_cluster_nodes);
+
+                        // merge_mutexes
+                        let old_mutex_nodes =
+                            std::mem::replace(&mut mutexes[old_id], HashSet::new());
+                        for old_mutex_node in old_mutex_nodes.iter() {
+                            mutexes[*old_mutex_node].remove(&old_id);
+                            mutexes[*old_mutex_node].insert(new_id);
+                        }
+                        mutexes[new_id].extend(old_mutex_nodes);
                     }
-                    if !(v == new_id) {
-                        v_cluster_nodes.iter().for_each(|node| {
-                            node_to_cluster.insert(*node, new_id);
-                        })
+                    false => {
+                        mutexes[new_id].insert(old_id);
+                        mutexes[old_id].insert(new_id);
                     }
-                    u_cluster_nodes.extend(&v_cluster_nodes);
-                    cluster_to_nodes.insert(new_id, u_cluster_nodes);
+                    _ => (),
                 }
-            }
-            false => {
-                unique_clusters.insert(u_cluster_id);
-                unique_clusters.insert(v_cluster_id);
             }
         }
     });
 
     seeds.iter_mut().for_each(|x| {
-        *x = *node_to_cluster.get(&x).unwrap_or(&x);
+        *x = *node_to_cluster.get(*x).unwrap();
     });
 
     return seeds;
@@ -168,6 +183,9 @@ mod tests {
     use super::*;
     use itertools::Itertools;
     use ndarray::array;
+    use ndarray::Array;
+    use ndarray_rand::rand_distr::Uniform;
+    use ndarray_rand::RandomExt;
 
     #[test]
     fn test_agglom() {
@@ -180,6 +198,26 @@ mod tests {
         let seeds = array![[1, 2, 3], [4, 5, 6], [7, 8, 9]].into_dyn();
         let offsets = vec![vec![0, 1], vec![1, 0]];
         let components = agglomerate::<2>(&affinities, offsets, vec![], seeds);
-        assert!(components.into_iter().unique().collect::<Vec<usize>>() == vec![1, 2, 4, 5]);
+        assert!(
+            components
+                .clone()
+                .into_iter()
+                .unique()
+                .collect::<Vec<usize>>()
+                == vec![1, 2, 4, 5],
+            "components = {}",
+            components
+        );
+    }
+
+    #[test]
+    fn test_bigger() {
+        let affinities = Array::random((3, 4, 4, 4), Uniform::new(-1.0, 1.0)).into_dyn();
+        let seeds = Array::from_shape_vec((4, 4, 4), (1..65).collect::<Vec<usize>>())
+            .unwrap()
+            .into_dyn();
+        let offsets = vec![vec![0, 0, 1], vec![0, 1, 0], vec![1, 0, 0]];
+        let components = agglomerate::<3>(&affinities, offsets, vec![], seeds);
+        assert!(true == false)
     }
 }
