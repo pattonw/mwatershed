@@ -1,6 +1,8 @@
 #![feature(test)]
 #![feature(binary_heap_drain_sorted)]
 
+extern crate test;
+
 use ndarray::{Array, Dim, IxDynImpl};
 use ndarray::{Dimension, IxDyn};
 use numpy::{IntoPyArray, PyArrayDyn};
@@ -9,13 +11,10 @@ use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
 use pyo3::PyResult;
 
-use std;
-
-use std::convert::TryInto;
-
-use std::collections::{BinaryHeap, HashSet};
-
 use ordered_float::NotNan;
+use std;
+use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::convert::TryInto;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 struct AgglomEdge(NotNan<f64>, bool, usize, usize);
@@ -180,6 +179,14 @@ mod tests {
     use super::*;
     use itertools::Itertools;
     use ndarray::array;
+    use ndarray::Array;
+    use ndarray_rand::rand::SeedableRng;
+    use ndarray_rand::rand_distr::Normal;
+    use ndarray_rand::RandomExt;
+    use rand_isaac::isaac64::Isaac64Rng;
+    use test::Bencher;
+
+    static BENCH_SIZE: usize = 200;
 
     #[test]
     fn test_agglom() {
@@ -192,15 +199,33 @@ mod tests {
         let seeds = array![[1, 2, 3], [4, 5, 6], [7, 8, 9]].into_dyn();
         let offsets = vec![vec![0, 1], vec![1, 0]];
         let components = agglomerate::<2>(&affinities, offsets, vec![], seeds);
-        assert!(
-            components
-                .clone()
-                .into_iter()
-                .unique()
-                .collect::<Vec<usize>>()
-                == vec![1, 2, 4, 5],
-            "components = {}",
-            components
-        );
+        println!("{:?}", components);
+        assert!(components.into_iter().unique().collect::<Vec<usize>>() == vec![1, 2, 4, 5]);
+    }
+    #[bench]
+    fn bench_agglom(b: &mut Bencher) {
+        // Get a seeded random number generator for reproducibility (Isaac64 algorithm)
+        let seed = 42;
+        let mut rng = Isaac64Rng::seed_from_u64(seed);
+
+        // Generate a random array using `rng`
+        let affinities = Array::random_using(
+            (2, BENCH_SIZE, BENCH_SIZE),
+            Normal::new(0., 1.0).unwrap(),
+            &mut rng,
+        )
+        .into_dyn();
+
+        b.iter(|| {
+            agglomerate::<2>(
+                &affinities,
+                vec![vec![0, 1], vec![1, 0]],
+                vec![],
+                Array::from_iter(0..BENCH_SIZE.pow(2))
+                    .into_shape((BENCH_SIZE, BENCH_SIZE))
+                    .unwrap()
+                    .into_dyn(),
+            )
+        });
     }
 }
