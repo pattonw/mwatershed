@@ -5,8 +5,6 @@ use ndarray::{Array, Dim, IxDynImpl};
 use ndarray::{Dimension, IxDyn};
 use numpy::{IntoPyArray, PyArrayDyn};
 
-use itertools::Unique;
-
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
 use pyo3::PyResult;
@@ -15,7 +13,7 @@ use std;
 
 use std::convert::TryInto;
 
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::{BinaryHeap, HashSet};
 
 use ordered_float::NotNan;
 
@@ -129,7 +127,6 @@ fn agglomerate<const D: usize>(
                         mutexes[new_id].insert(old_id);
                         mutexes[old_id].insert(new_id);
                     }
-                    _ => (),
                 }
             }
         }
@@ -183,9 +180,6 @@ mod tests {
     use super::*;
     use itertools::Itertools;
     use ndarray::array;
-    use ndarray::Array;
-    use ndarray_rand::rand_distr::Uniform;
-    use ndarray_rand::RandomExt;
 
     #[test]
     fn test_agglom() {
@@ -208,16 +202,5 @@ mod tests {
             "components = {}",
             components
         );
-    }
-
-    #[test]
-    fn test_bigger() {
-        let affinities = Array::random((3, 4, 4, 4), Uniform::new(-1.0, 1.0)).into_dyn();
-        let seeds = Array::from_shape_vec((4, 4, 4), (1..65).collect::<Vec<usize>>())
-            .unwrap()
-            .into_dyn();
-        let offsets = vec![vec![0, 0, 1], vec![0, 1, 0], vec![1, 0, 0]];
-        let components = agglomerate::<3>(&affinities, offsets, vec![], seeds);
-        assert!(true == false)
     }
 }
