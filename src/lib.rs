@@ -77,15 +77,10 @@ fn agglomerate<const D: usize>(
         };
     });
 
-    let mut node_to_cluster: Vec<usize> = (0..(num_nodes + 1)).into_iter().collect();
-    let mut cluster_to_nodes: Vec<Vec<usize>> = (0..(num_nodes + 1))
-        .into_iter()
-        .map(|indx| vec![indx])
-        .collect();
-    let mut mutexes: Vec<HashSet<usize>> = (0..(num_nodes + 1))
-        .into_iter()
-        .map(|_| HashSet::new())
-        .collect();
+    let mut node_to_cluster: Vec<usize> = (0..(num_nodes + 1)).collect();
+    let mut cluster_to_nodes: Vec<Vec<usize>> =
+        (0..(num_nodes + 1)).map(|indx| vec![indx]).collect();
+    let mut mutexes: Vec<HashSet<usize>> = (0..(num_nodes + 1)).map(|_| HashSet::new()).collect();
 
     sorted_edges.drain_sorted().for_each(|edge| {
         let AgglomEdge(_aff, pos, u, v) = edge;
@@ -186,7 +181,7 @@ mod tests {
     use rand_isaac::isaac64::Isaac64Rng;
     use test::Bencher;
 
-    static BENCH_SIZE: usize = 200;
+    static BENCH_SIZE: usize = 50;
 
     #[test]
     fn test_agglom() {
