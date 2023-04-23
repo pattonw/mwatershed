@@ -1,8 +1,7 @@
 #![feature(test)]
 #![feature(binary_heap_drain_sorted)]
 
-extern crate test;
-
+use itertools::{sorted, Itertools};
 use ndarray::{Array, Dim, IxDynImpl};
 use ndarray::{Dimension, IxDyn};
 use numpy::{IntoPyArray, PyArrayDyn};
@@ -17,7 +16,7 @@ use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::convert::TryInto;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
-struct AgglomEdge(NotNan<f64>, bool, usize, usize);
+pub struct AgglomEdge(NotNan<f64>, bool, usize, usize);
 
 fn get_dims<const D: usize>(dim: Dim<IxDynImpl>, skip: usize) -> (Vec<usize>, [usize; D]) {
     (
@@ -30,14 +29,14 @@ fn get_dims<const D: usize>(dim: Dim<IxDynImpl>, skip: usize) -> (Vec<usize>, [u
     )
 }
 
-fn agglomerate<const D: usize>(
+pub fn get_edges<const D: usize>(
     affinities: &Array<f64, IxDyn>,
     offsets: Vec<Vec<usize>>,
     edges: Vec<AgglomEdge>,
-    mut seeds: Array<usize, IxDyn>,
-) -> Array<usize, IxDyn> {
+    seeds: &Array<usize, IxDyn>,
+) -> Vec<AgglomEdge> {
     let (_, array_shape) = get_dims::<D>(seeds.dim(), 0);
-    let mut sorted_edges = BinaryHeap::new();
+    let mut sorted_edges = Vec::with_capacity(affinities.len() + edges.len());
     let offsets: Vec<[usize; D]> = offsets
         .into_iter()
         .map(|offset| offset.try_into().unwrap())
@@ -46,8 +45,6 @@ fn agglomerate<const D: usize>(
     edges.into_iter().for_each(|edge| {
         sorted_edges.push(edge);
     });
-
-    let num_nodes = seeds.iter().max().unwrap();
 
     affinities.indexed_iter().for_each(|(ind, aff)| {
         let (offset_indices, u_index) = get_dims::<D>(ind, 1);
@@ -76,18 +73,82 @@ fn agglomerate<const D: usize>(
             true => (),
         };
     });
+    return sorted_edges.into_iter().sorted_unstable().collect();
+}
 
-    let mut node_to_cluster: Vec<usize> = (0..(num_nodes + 1)).collect();
-    let mut cluster_to_nodes: Vec<Vec<usize>> =
-        (0..(num_nodes + 1)).map(|indx| vec![indx]).collect();
-    let mut mutexes: Vec<HashSet<usize>> = (0..(num_nodes + 1)).map(|_| HashSet::new()).collect();
+struct Clustering {
+    node_to_cluster: Vec<usize>,
+    cluster_to_nodes: Vec<Vec<usize>>,
+    mutexes: Vec<HashSet<usize>>,
+}
 
-    sorted_edges.drain_sorted().for_each(|edge| {
+impl Clustering {
+    fn new(num_nodes: usize) -> Clustering {
+        return Clustering {
+            node_to_cluster: (0..(num_nodes + 1)).collect(),
+            cluster_to_nodes: (0..(num_nodes + 1)).map(|indx| vec![indx]).collect(),
+            mutexes: (0..(num_nodes + 1)).map(|_| HashSet::new()).collect(),
+        };
+    }
+
+    fn cluster_id(&self, node: usize) -> usize {
+        *self.node_to_cluster.get(node).unwrap()
+    }
+
+    fn mutex(&self, a: usize, b: usize) -> bool {
+        self.mutexes[a].contains(&b)
+    }
+
+    fn merge_clusters(&mut self, a: usize, b: usize) {
+        // replace b cluster with empty vector
+        let b_nodes = std::mem::replace(&mut self.cluster_to_nodes[b], vec![]);
+        // update every b node to point to a cluster id
+        b_nodes.iter().for_each(|node| {
+            self.node_to_cluster[*node] = a;
+        });
+        // update a cluster to contain b cluster nodes
+        self.cluster_to_nodes.get_mut(a).unwrap().extend(b_nodes);
+    }
+
+    fn merge_mutex(&mut self, a: usize, b: usize) {
+        // empty b mutex edges
+        let b_mutexes = std::mem::replace(&mut self.mutexes[b], HashSet::new());
+        // for each b-x mutex edge, replace with a-x edge
+        for mutex_node in b_mutexes.iter() {
+            self.mutexes[*mutex_node].remove(&b);
+            self.mutexes[*mutex_node].insert(a);
+        }
+        // update a mutexes to include all b mutexes
+        self.mutexes[a].extend(b_mutexes);
+    }
+
+    fn insert_mutex(&mut self, a: usize, b: usize) {
+        self.mutexes[a].insert(b);
+        self.mutexes[b].insert(a);
+    }
+
+    fn map(&self, x: usize) -> usize {
+        self.node_to_cluster[x]
+    }
+}
+
+pub fn agglomerate<const D: usize>(
+    affinities: &Array<f64, IxDyn>,
+    offsets: Vec<Vec<usize>>,
+    edges: Vec<AgglomEdge>,
+    mut seeds: Array<usize, IxDyn>,
+) -> Array<usize, IxDyn> {
+    let num_nodes = seeds.len() + 1;
+
+    let sorted_edges = get_edges::<D>(affinities, offsets, edges, &seeds);
+
+    let mut clustering = Clustering::new(num_nodes);
+
+    sorted_edges.into_iter().for_each(|edge| {
         let AgglomEdge(_aff, pos, u, v) = edge;
-        let u_cluster_id = *node_to_cluster.get(u).unwrap_or(&u);
-        let v_cluster_id = *node_to_cluster.get(v).unwrap_or(&v);
 
-        // println!("pos: {}, u: {}, u_cluster_id: {}, v: {}, v_cluster_id: {}, node_to_cluster: {:?}, cluster_to_nodes: {:?}", pos, u, u_cluster_id, v, v_cluster_id, node_to_cluster, cluster_to_nodes);
+        let u_cluster_id = clustering.cluster_id(u);
+        let v_cluster_id = clustering.cluster_id(v);
 
         let (new_id, old_id) = match u_cluster_id < v_cluster_id {
             true => (u_cluster_id, v_cluster_id),
@@ -95,31 +156,14 @@ fn agglomerate<const D: usize>(
         };
 
         if new_id != old_id {
-            let mutex_nodes = &mutexes[new_id];
-            if !(mutex_nodes.contains(&old_id)) {
+            if !(clustering.mutex(new_id, old_id)) {
                 match pos {
                     true => {
-                        // update cluster ids
-                        let old_cluster_nodes =
-                            std::mem::replace(&mut cluster_to_nodes[old_id], vec![]);
-                        old_cluster_nodes.iter().for_each(|node| {
-                            node_to_cluster[*node] = new_id;
-                        });
-                        let new_cluster_nodes = cluster_to_nodes.get_mut(new_id).unwrap();
-                        new_cluster_nodes.extend(old_cluster_nodes);
-
-                        // merge_mutexes
-                        let old_mutex_nodes =
-                            std::mem::replace(&mut mutexes[old_id], HashSet::new());
-                        for old_mutex_node in old_mutex_nodes.iter() {
-                            mutexes[*old_mutex_node].remove(&old_id);
-                            mutexes[*old_mutex_node].insert(new_id);
-                        }
-                        mutexes[new_id].extend(old_mutex_nodes);
+                        clustering.merge_clusters(new_id, old_id);
+                        clustering.merge_mutex(new_id, old_id);
                     }
                     false => {
-                        mutexes[new_id].insert(old_id);
-                        mutexes[old_id].insert(new_id);
+                        clustering.insert_mutex(new_id, old_id);
                     }
                 }
             }
@@ -127,7 +171,7 @@ fn agglomerate<const D: usize>(
     });
 
     seeds.iter_mut().for_each(|x| {
-        *x = *node_to_cluster.get(*x).unwrap();
+        *x = clustering.map(*x);
     });
 
     return seeds;
