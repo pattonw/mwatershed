@@ -14,7 +14,7 @@ t1 = time.time()
 components = mwatershed.agglom(affinities, offsets, seeds=nodes)
 t2 = time.time()
 
-print(f"{len(np.unique(components))} components in {t2-t1} seconds")
+print(f"MWATERSHED: {len(np.unique(components))} components in {t2-t1} seconds")
 
 from affogato.segmentation.mws import compute_mws_segmentation_from_affinities
 
@@ -22,4 +22,4 @@ t3 = time.time()
 components = compute_mws_segmentation_from_affinities(affinities, offsets, 0)
 t4 = time.time()
 
-print(f"{len(np.unique(components))} components in {t4-t3} seconds")
+print(f"AFFOGATO: {len(np.unique(components))} components in {t4-t3} seconds")
