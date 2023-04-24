@@ -113,7 +113,7 @@ impl Clustering {
             self.mutexes[*mutex_node].remove(&b);
             let inserted = self.mutexes[*mutex_node].insert(a);
             if inserted {
-                self.mutexes[a].insert(mutex_node);
+                self.mutexes[a].insert(*mutex_node);
             }
         }
     }
