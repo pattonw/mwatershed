@@ -2,7 +2,7 @@
 #![feature(binary_heap_drain_sorted)]
 
 use itertools::{sorted, Itertools};
-use ndarray::{Array, Dim, IxDynImpl};
+use ndarray::{Array, Axis, Dim, IxDynImpl, Slice};
 use ndarray::{Dimension, IxDyn};
 use numpy::{IntoPyArray, PyArrayDyn};
 
@@ -14,6 +14,7 @@ use ordered_float::NotNan;
 use std;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::convert::TryInto;
+use std::ops::Index;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct AgglomEdge(NotNan<f64>, bool, usize, usize);
@@ -46,33 +47,63 @@ pub fn get_edges<const D: usize>(
         sorted_edges.push(edge);
     });
 
-    affinities.indexed_iter().for_each(|(ind, aff)| {
-        let (offset_indices, u_index) = get_dims::<D>(ind, 1);
-        let offset_ind = *offset_indices.get(0).unwrap();
+    offsets
+        .iter()
+        .enumerate()
+        .for_each(|(offset_index, offset)| {
+            let all_offset_affs = affinities.index_axis(Axis(offset_index), 0);
+            let offset_affs =
+                all_offset_affs.slice_each_axis(|ax| Slice::from(0..(0 - offset[ax.axis.index()])));
+            let u_seeds = seeds.slice_each_axis(|ax| Slice::from(0..(0 - offset[ax.axis.index()])));
+            let v_seeds = seeds.slice_each_axis(|ax| Slice::from(offset[ax.axis.index()]..));
+            offset_affs.indexed_iter().for_each(|(index, aff)| {
+                let u = u_seeds[&index];
+                let v = v_seeds[&index];
+                sorted_edges.push(AgglomEdge(
+                    NotNan::new(aff.abs()).expect("Cannot handle `nan` affinities"),
+                    aff > &0.0,
+                    u,
+                    v,
+                ))
+            });
+        });
 
-        let offset = offsets.get(offset_ind).unwrap();
-        let v_index: [usize; D] = u_index
-            .iter()
-            .zip(offset.iter())
-            .map(|(u_ind, o)| u_ind + o)
-            .collect::<Vec<usize>>()
-            .try_into()
-            .unwrap();
-        let oob = v_index
-            .iter()
-            .zip(array_shape.iter())
-            .map(|(a, b)| a >= b)
-            .any(|x| x);
-        match oob {
-            false => sorted_edges.push(AgglomEdge(
-                NotNan::new(aff.abs()).expect("Cannot handle `nan` affinities"),
-                aff > &0.0,
-                seeds[IxDyn(&u_index)],
-                seeds[IxDyn(&v_index)],
-            )),
-            true => (),
-        };
-    });
+    // seeds.indexed_iter().for_each(|(u_index, aff)| {
+    //     offsets
+    //         .iter()
+    //         .enumerate()
+    //         .for_each(|(offset_index, offset)| {
+    //             let v_index: [usize; D] = u_index
+    //                 .as_array_view()
+    //                 .iter()
+    //                 .zip(offset.iter())
+    //                 .map(|(u_ind, o)| u_ind + o)
+    //                 .collect::<Vec<usize>>()
+    //                 .try_into()
+    //                 .unwrap();
+    //             let oob = v_index
+    //                 .iter()
+    //                 .zip(array_shape.iter())
+    //                 .map(|(a, b)| a >= b)
+    //                 .any(|x| x);
+
+    //             let aff = affinities[IxDyn(
+    //                 vec![offset_index]
+    //                     .iter()
+    //                     .chain(u_index.as_array_view().iter())
+    //                     .collect(),
+    //             )];
+    //             match oob {
+    //                 false => sorted_edges.push(AgglomEdge(
+    //                     NotNan::new(aff.abs()).expect("Cannot handle `nan` affinities"),
+    //                     aff > &0.0,
+    //                     seeds[IxDyn(&u_index)],
+    //                     seeds[IxDyn(&v_index)],
+    //                 )),
+    //                 true => (),
+    //             };
+    //         });
+    // });
     return sorted_edges.into_iter().sorted_unstable().collect();
 }
 
@@ -113,13 +144,14 @@ impl Clustering {
     fn merge_mutex(&mut self, a: usize, b: usize) {
         // empty b mutex edges
         let b_mutexes = std::mem::replace(&mut self.mutexes[b], HashSet::new());
-        // for each b-x mutex edge, replace with a-x edge
+        // for each x-b mutex edge, replace with x-a edge
         for mutex_node in b_mutexes.iter() {
             self.mutexes[*mutex_node].remove(&b);
-            self.mutexes[*mutex_node].insert(a);
+            let inserted = self.mutexes[*mutex_node].insert(a);
+            if inserted {
+                self.mutexes[a].insert(b);
+            }
         }
-        // update a mutexes to include all b mutexes
-        self.mutexes[a].extend(b_mutexes);
     }
 
     fn insert_mutex(&mut self, a: usize, b: usize) {
@@ -223,7 +255,7 @@ mod tests {
     use ndarray_rand::rand_distr::Normal;
     use ndarray_rand::RandomExt;
     use rand_isaac::isaac64::Isaac64Rng;
-    use test::Bencher;
+    // use test::Bencher;
 
     static BENCH_SIZE: usize = 50;
 
@@ -241,30 +273,30 @@ mod tests {
         println!("{:?}", components);
         assert!(components.into_iter().unique().collect::<Vec<usize>>() == vec![1, 2, 4, 5]);
     }
-    #[bench]
-    fn bench_agglom(b: &mut Bencher) {
-        // Get a seeded random number generator for reproducibility (Isaac64 algorithm)
-        let seed = 42;
-        let mut rng = Isaac64Rng::seed_from_u64(seed);
+    // #[bench]
+    // fn bench_agglom(b: &mut Bencher) {
+    //     // Get a seeded random number generator for reproducibility (Isaac64 algorithm)
+    //     let seed = 42;
+    //     let mut rng = Isaac64Rng::seed_from_u64(seed);
 
-        // Generate a random array using `rng`
-        let affinities = Array::random_using(
-            (2, BENCH_SIZE, BENCH_SIZE),
-            Normal::new(0., 1.0).unwrap(),
-            &mut rng,
-        )
-        .into_dyn();
+    //     // Generate a random array using `rng`
+    //     let affinities = Array::random_using(
+    //         (2, BENCH_SIZE, BENCH_SIZE),
+    //         Normal::new(0., 1.0).unwrap(),
+    //         &mut rng,
+    //     )
+    //     .into_dyn();
 
-        b.iter(|| {
-            agglomerate::<2>(
-                &affinities,
-                vec![vec![0, 1], vec![1, 0]],
-                vec![],
-                Array::from_iter(0..BENCH_SIZE.pow(2))
-                    .into_shape((BENCH_SIZE, BENCH_SIZE))
-                    .unwrap()
-                    .into_dyn(),
-            )
-        });
-    }
+    //     b.iter(|| {
+    //         agglomerate::<2>(
+    //             &affinities,
+    //             vec![vec![0, 1], vec![1, 0]],
+    //             vec![],
+    //             Array::from_iter(0..BENCH_SIZE.pow(2))
+    //                 .into_shape((BENCH_SIZE, BENCH_SIZE))
+    //                 .unwrap()
+    //                 .into_dyn(),
+    //         )
+    //     });
+    // }
 }
