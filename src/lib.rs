@@ -51,10 +51,11 @@ pub fn get_edges<const D: usize>(
         .iter()
         .enumerate()
         .for_each(|(offset_index, offset)| {
-            let all_offset_affs = affinities.index_axis(Axis(offset_index), 0);
-            let offset_affs =
-                all_offset_affs.slice_each_axis(|ax| Slice::from(0..(0 - offset[ax.axis.index()])));
-            let u_seeds = seeds.slice_each_axis(|ax| Slice::from(0..(0 - offset[ax.axis.index()])));
+            let all_offset_affs = affinities.index_axis(Axis(0), offset_index);
+            let offset_affs = all_offset_affs
+                .slice_each_axis(|ax| Slice::from(0..(ax.len - offset[ax.axis.index()])));
+            let u_seeds =
+                seeds.slice_each_axis(|ax| Slice::from(0..(ax.len - offset[ax.axis.index()])));
             let v_seeds = seeds.slice_each_axis(|ax| Slice::from(offset[ax.axis.index()]..));
             offset_affs.indexed_iter().for_each(|(index, aff)| {
                 let u = u_seeds[&index];
@@ -67,43 +68,6 @@ pub fn get_edges<const D: usize>(
                 ))
             });
         });
-
-    // seeds.indexed_iter().for_each(|(u_index, aff)| {
-    //     offsets
-    //         .iter()
-    //         .enumerate()
-    //         .for_each(|(offset_index, offset)| {
-    //             let v_index: [usize; D] = u_index
-    //                 .as_array_view()
-    //                 .iter()
-    //                 .zip(offset.iter())
-    //                 .map(|(u_ind, o)| u_ind + o)
-    //                 .collect::<Vec<usize>>()
-    //                 .try_into()
-    //                 .unwrap();
-    //             let oob = v_index
-    //                 .iter()
-    //                 .zip(array_shape.iter())
-    //                 .map(|(a, b)| a >= b)
-    //                 .any(|x| x);
-
-    //             let aff = affinities[IxDyn(
-    //                 vec![offset_index]
-    //                     .iter()
-    //                     .chain(u_index.as_array_view().iter())
-    //                     .collect(),
-    //             )];
-    //             match oob {
-    //                 false => sorted_edges.push(AgglomEdge(
-    //                     NotNan::new(aff.abs()).expect("Cannot handle `nan` affinities"),
-    //                     aff > &0.0,
-    //                     seeds[IxDyn(&u_index)],
-    //                     seeds[IxDyn(&v_index)],
-    //                 )),
-    //                 true => (),
-    //             };
-    //         });
-    // });
     return sorted_edges.into_iter().sorted_unstable().collect();
 }
 
