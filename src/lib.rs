@@ -111,10 +111,6 @@ impl Positives {
         }
     }
 
-    fn cluster_id(&self, node: usize) -> usize {
-        *self.node_to_cluster.get(node).unwrap()
-    }
-
     fn merge(&mut self, a: usize, b: usize) {
         // replace b cluster with empty vector
         let b_nodes = std::mem::replace(&mut self.clusters[b], None).unwrap();
@@ -158,8 +154,8 @@ impl Clustering {
         sorted_edges.into_iter().for_each(|edge| {
             let AgglomEdge(pos, u, v) = edge;
 
-            let u_cluster_id = self.positives.cluster_id(u);
-            let v_cluster_id = self.positives.cluster_id(v);
+            let u_cluster_id = self.positives.node_to_cluster[u];
+            let v_cluster_id = self.positives.node_to_cluster[v];
 
             if !self.skip_edge(u_cluster_id, v_cluster_id) {
                 let (new_id, old_id) = match u_cluster_id < v_cluster_id {
