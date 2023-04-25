@@ -5,8 +5,6 @@
 extern crate test;
 mod lib;
 use crate::lib::*;
-use itertools::Itertools;
-use ndarray::array;
 use ndarray::Array;
 use ndarray_rand::rand::SeedableRng;
 use ndarray_rand::rand_distr::Normal;
