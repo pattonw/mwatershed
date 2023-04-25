@@ -12,6 +12,7 @@ itertools = "0.10.5"
 ordered-float = "3.0"
 ndarray-rand = "0.14"
 rand_isaac = "0.3.0"
+futures = "0.3"
 
 [lib]
 name = "mwatershed"
