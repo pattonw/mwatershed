@@ -153,34 +153,27 @@ impl Clustering {
     fn skip_edge(&self, a: usize, b: usize) -> bool {
         (a == b) || self.negatives.mutex(a, b)
     }
-    fn apply_edge(&mut self, pos: bool, a: usize, b: usize) {
-        let (new_id, old_id) = match a < b {
-            true => (a, b),
-            false => (b, a),
-        };
-        match pos {
-            true => self.merge(new_id, old_id),
-            false => {
-                self.negatives.insert(new_id, old_id);
-            }
-        }
-    }
-
-    fn process_edge(&mut self, edge: AgglomEdge) {
-        let AgglomEdge(pos, u, v) = edge;
-
-        let u_cluster_id = self.positives.cluster_id(u);
-        let v_cluster_id = self.positives.cluster_id(v);
-
-        if !self.skip_edge(u_cluster_id, v_cluster_id) {
-            self.apply_edge(pos, u_cluster_id, v_cluster_id);
-        }
-    }
 
     fn process_edges(&mut self, sorted_edges: Vec<AgglomEdge>) {
-        sorted_edges
-            .into_iter()
-            .for_each(|edge| self.process_edge(edge));
+        sorted_edges.into_iter().for_each(|edge| {
+            let AgglomEdge(pos, u, v) = edge;
+
+            let u_cluster_id = self.positives.cluster_id(u);
+            let v_cluster_id = self.positives.cluster_id(v);
+
+            if !self.skip_edge(u_cluster_id, v_cluster_id) {
+                let (new_id, old_id) = match u_cluster_id < v_cluster_id {
+                    true => (u_cluster_id, v_cluster_id),
+                    false => (v_cluster_id, u_cluster_id),
+                };
+                match pos {
+                    true => self.merge(new_id, old_id),
+                    false => {
+                        self.negatives.insert(new_id, old_id);
+                    }
+                }
+            }
+        });
     }
 
     fn map(&self, seeds: &mut Array<usize, IxDyn>) {
