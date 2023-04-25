@@ -1,5 +1,6 @@
 #![feature(test)]
 #![feature(binary_heap_drain_sorted)]
+#![feature(extend_one)]
 
 use itertools::{sorted, Itertools};
 use ndarray::{Array, Axis, Dim, IxDynImpl, Slice};
@@ -16,8 +17,8 @@ use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::convert::TryInto;
 use std::ops::Index;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub struct AgglomEdge(NotNan<f64>, bool, usize, usize);
+#[derive(Debug)]
+pub struct AgglomEdge(bool, usize, usize);
 
 fn get_dims<const D: usize>(dim: Dim<IxDynImpl>, skip: usize) -> (Vec<usize>, [usize; D]) {
     (
@@ -33,19 +34,17 @@ fn get_dims<const D: usize>(dim: Dim<IxDynImpl>, skip: usize) -> (Vec<usize>, [u
 pub fn get_edges<const D: usize>(
     affinities: &Array<f64, IxDyn>,
     offsets: Vec<Vec<usize>>,
-    edges: Vec<AgglomEdge>,
+    mut edges: Vec<AgglomEdge>,
     seeds: &Array<usize, IxDyn>,
 ) -> Vec<AgglomEdge> {
     let (_, array_shape) = get_dims::<D>(seeds.dim(), 0);
-    let mut sorted_edges = Vec::with_capacity(affinities.len() + edges.len());
     let offsets: Vec<[usize; D]> = offsets
         .into_iter()
         .map(|offset| offset.try_into().unwrap())
         .collect();
 
-    edges.into_iter().for_each(|edge| {
-        sorted_edges.push(edge);
-    });
+    edges.extend_reserve(affinities.len());
+    let mut affs = Vec::with_capacity(edges.capacity());
 
     offsets
         .iter()
@@ -60,15 +59,15 @@ pub fn get_edges<const D: usize>(
             offset_affs.indexed_iter().for_each(|(index, aff)| {
                 let u = u_seeds[&index];
                 let v = v_seeds[&index];
-                sorted_edges.push(AgglomEdge(
-                    NotNan::new(aff.abs()).expect("Cannot handle `nan` affinities"),
-                    aff > &0.0,
-                    u,
-                    v,
-                ))
+                affs.push(NotNan::new(aff.abs()).expect("Cannot handle `nan` affinities"));
+                edges.push(AgglomEdge(aff > &0.0, u, v))
             });
         });
-    return sorted_edges.into_iter().sorted_unstable().collect();
+    affs.into_iter()
+        .zip(edges.into_iter())
+        .sorted_unstable_by(|a, b| Ord::cmp(&a.0, &b.0))
+        .map(|(aff, edge)| edge)
+        .collect()
 }
 
 struct Clustering {
@@ -123,8 +122,40 @@ impl Clustering {
         self.mutexes[b].insert(a);
     }
 
-    fn map(&self, x: usize) -> usize {
-        self.node_to_cluster[x]
+    fn process_edges(&mut self, sorted_edges: Vec<AgglomEdge>) {
+        sorted_edges.into_iter().for_each(|edge| {
+            let AgglomEdge(pos, u, v) = edge;
+
+            let u_cluster_id = self.cluster_id(u);
+            let v_cluster_id = self.cluster_id(v);
+
+            let (new_id, old_id) = match self.cluster_to_nodes[u_cluster_id].len()
+                > self.cluster_to_nodes[v_cluster_id].len()
+            {
+                true => (u_cluster_id, v_cluster_id),
+                false => (v_cluster_id, u_cluster_id),
+            };
+
+            if new_id != old_id {
+                if !(self.mutex(new_id, old_id)) {
+                    match pos {
+                        true => {
+                            self.merge_clusters(new_id, old_id);
+                            self.merge_mutex(new_id, old_id);
+                        }
+                        false => {
+                            self.insert_mutex(new_id, old_id);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    fn map(&self, seeds: &mut Array<usize, IxDyn>) {
+        seeds.iter_mut().for_each(|x| {
+            *x = self.node_to_cluster[*x];
+        });
     }
 }
 
@@ -140,35 +171,9 @@ pub fn agglomerate<const D: usize>(
 
     let mut clustering = Clustering::new(num_nodes);
 
-    sorted_edges.into_iter().for_each(|edge| {
-        let AgglomEdge(_aff, pos, u, v) = edge;
+    clustering.process_edges(sorted_edges);
 
-        let u_cluster_id = clustering.cluster_id(u);
-        let v_cluster_id = clustering.cluster_id(v);
-
-        let (new_id, old_id) = match u_cluster_id < v_cluster_id {
-            true => (u_cluster_id, v_cluster_id),
-            false => (v_cluster_id, u_cluster_id),
-        };
-
-        if new_id != old_id {
-            if !(clustering.mutex(new_id, old_id)) {
-                match pos {
-                    true => {
-                        clustering.merge_clusters(new_id, old_id);
-                        clustering.merge_mutex(new_id, old_id);
-                    }
-                    false => {
-                        clustering.insert_mutex(new_id, old_id);
-                    }
-                }
-            }
-        }
-    });
-
-    seeds.iter_mut().for_each(|x| {
-        *x = clustering.map(*x);
-    });
+    clustering.map(&mut seeds);
 
     return seeds;
 }
@@ -180,7 +185,7 @@ fn agglom<'py>(
     affinities: &PyArrayDyn<f64>,
     offsets: Vec<Vec<usize>>,
     seeds: Option<&PyArrayDyn<usize>>,
-    edges: Option<Vec<(usize, usize, f64)>>,
+    edges: Option<Vec<(bool, usize, usize)>>,
 ) -> PyResult<&'py PyArrayDyn<usize>> {
     let affinities = unsafe { affinities.as_array() }.to_owned();
     let seeds = unsafe { seeds.expect("Seeds not provided!").as_array() }.to_owned();
@@ -188,7 +193,7 @@ fn agglom<'py>(
     let edges: Vec<AgglomEdge> = edges
         .unwrap_or(vec![])
         .into_iter()
-        .map(|(u, v, aff)| AgglomEdge(NotNan::new(aff.abs()).unwrap(), aff > 0.0, u, v))
+        .map(|(pos, u, v)| AgglomEdge(pos, u, v))
         .collect();
     let result = match dim {
         1 => agglomerate::<1>(&affinities, offsets, edges, seeds),

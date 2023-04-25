@@ -1,5 +1,6 @@
 #![feature(test)]
 #![feature(binary_heap_drain_sorted)]
+#![feature(extend_one)]
 
 extern crate test;
 mod lib;
