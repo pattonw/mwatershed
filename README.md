@@ -31,7 +31,7 @@ components = mwatershed.agglom(
 where:
 * `affinities` is a `k+1` dimensional array of non `nan` affinities with leading dimension having size `n`
 * `offsets` is a list of length `n` of offset tuples of `k` integers
-* `seeds` is a `k` dimensional array of fragment ids. Note `seeds.shape` must be equal to `affinities.shape[1:]`. The simplest case is assigning a unique int to each element of seeds.
+* `seeds` is a `k` dimensional array of fragment ids. Note `seeds.shape` must be equal to `affinities.shape[1:]`. Any entry not equal to 0 is guaranteed to stay that way, any entry equal to zero has no priors.
 * `edges` is a list of `(u, v, aff)` tuples to insert arbitrary extra affinities between fragment ids
 
 ### Credits
