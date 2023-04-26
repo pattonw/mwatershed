@@ -1,5 +1,7 @@
 #![feature(extend_one)]
 
+use disjoint_sets::UnionFind;
+
 use itertools::Itertools;
 use ndarray::{Array, Axis, Dim, IxDynImpl, Slice};
 use ndarray::{Dimension, IxDyn};
@@ -11,7 +13,7 @@ use pyo3::PyResult;
 
 use ordered_float::NotNan;
 use std;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 
 #[derive(Debug)]
@@ -63,68 +65,54 @@ pub fn get_edges<const D: usize>(
     affs.into_iter()
         .zip(edges.into_iter())
         .sorted_unstable_by(|a, b| Ord::cmp(&a.0, &b.0))
-        .map(|(aff, edge)| edge)
+        .map(|(_aff, edge)| edge)
         .collect()
 }
 
 struct Negatives {
-    mutexes: Vec<Option<HashSet<usize>>>,
+    mutexes: Vec<HashSet<usize>>,
 }
 impl Negatives {
     fn new(num_nodes: usize) -> Negatives {
         Negatives {
-            mutexes: (0..(num_nodes + 1)).map(|_| Some(HashSet::new())).collect(),
+            mutexes: (0..(num_nodes + 1)).map(|_| HashSet::new()).collect(),
         }
     }
 
     fn mutex(&self, a: usize, b: usize) -> bool {
-        self.mutexes[a].as_ref().unwrap().contains(&b)
+        self.mutexes[a].contains(&b)
     }
 
     fn merge(&mut self, a: usize, b: usize) {
         // empty b mutex edges
-        let b_mutexes = std::mem::replace(&mut self.mutexes[b], None).unwrap();
+        let b_mutexes = std::mem::replace(&mut self.mutexes[b], HashSet::with_capacity(0));
         // for each x-b mutex edge, replace with x-a edge
         for mutex_node in b_mutexes.iter() {
-            self.mutexes[*mutex_node].as_mut().unwrap().remove(&b);
-            let inserted = self.mutexes[*mutex_node].as_mut().unwrap().insert(a);
+            self.mutexes[*mutex_node].remove(&b);
+            let inserted = self.mutexes[*mutex_node].insert(a);
             if inserted {
-                self.mutexes[a].as_mut().unwrap().insert(*mutex_node);
+                self.mutexes[a].insert(*mutex_node);
             }
         }
     }
 
     fn insert(&mut self, a: usize, b: usize) {
-        self.mutexes[a].as_mut().unwrap().insert(b);
-        self.mutexes[b].as_mut().unwrap().insert(a);
+        self.mutexes[a].insert(b);
+        self.mutexes[b].insert(a);
     }
 }
 struct Positives {
-    node_to_cluster: Vec<usize>,
-    clusters: Vec<Option<Vec<usize>>>,
+    clusters: UnionFind<usize>,
 }
 impl Positives {
     fn new(num_nodes: usize) -> Positives {
         Positives {
-            node_to_cluster: (0..(num_nodes + 1)).collect(),
-            clusters: (0..(num_nodes + 1)).map(|indx| Some(vec![indx])).collect(),
+            clusters: UnionFind::new(num_nodes + 1),
         }
     }
 
     fn merge(&mut self, a: usize, b: usize) {
-        // replace b cluster with empty vector
-        let b_nodes = std::mem::replace(&mut self.clusters[b], None).unwrap();
-        // update every b node to point to a cluster id
-        b_nodes.iter().for_each(|node| {
-            self.node_to_cluster[*node] = a;
-        });
-        // update a cluster to contain b cluster nodes
-        self.clusters
-            .get_mut(a)
-            .unwrap()
-            .as_mut()
-            .unwrap()
-            .extend(b_nodes);
+        self.clusters.union(a, b);
     }
 }
 
@@ -143,29 +131,30 @@ impl Clustering {
 
     fn merge(&mut self, a: usize, b: usize) {
         self.positives.merge(a, b);
-        self.negatives.merge(a, b);
-    }
-
-    fn skip_edge(&self, a: usize, b: usize) -> bool {
-        (a == b) || self.negatives.mutex(a, b)
+        let rep = self.positives.clusters.find(a);
+        match a == rep {
+            true => self.negatives.merge(a, b),
+            false => self.negatives.merge(b, a),
+        }
     }
 
     fn process_edges(&mut self, sorted_edges: Vec<AgglomEdge>) {
         sorted_edges.into_iter().for_each(|edge| {
             let AgglomEdge(pos, u, v) = edge;
+            if !self.positives.clusters.equiv(u, v) {
+                let u_rep = self.positives.clusters.find(u);
+                let v_rep = self.positives.clusters.find(v);
 
-            let u_cluster_id = self.positives.node_to_cluster[u];
-            let v_cluster_id = self.positives.node_to_cluster[v];
-
-            if !self.skip_edge(u_cluster_id, v_cluster_id) {
-                let (new_id, old_id) = match u_cluster_id < v_cluster_id {
-                    true => (u_cluster_id, v_cluster_id),
-                    false => (v_cluster_id, u_cluster_id),
-                };
-                match pos {
-                    true => self.merge(new_id, old_id),
-                    false => {
-                        self.negatives.insert(new_id, old_id);
+                if !self.negatives.mutex(u_rep, v_rep) {
+                    let (new_id, old_id) = match u_rep < v_rep {
+                        true => (u_rep, v_rep),
+                        false => (v_rep, u_rep),
+                    };
+                    match pos {
+                        true => self.merge(new_id, old_id),
+                        false => {
+                            self.negatives.insert(new_id, old_id);
+                        }
                     }
                 }
             }
@@ -174,7 +163,7 @@ impl Clustering {
 
     fn map(&self, seeds: &mut Array<usize, IxDyn>) {
         seeds.iter_mut().for_each(|x| {
-            *x = self.positives.node_to_cluster[*x];
+            *x = self.positives.clusters.find(*x);
         });
     }
 }

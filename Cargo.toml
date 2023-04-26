@@ -13,6 +13,7 @@ ordered-float = "3.0"
 ndarray-rand = "0.14"
 rand_isaac = "0.3.0"
 futures = "0.3"
+disjoint-sets = "0.4.2"
 
 [lib]
 name = "mwatershed"
