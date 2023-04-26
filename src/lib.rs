@@ -171,10 +171,43 @@ impl Clustering {
 pub fn agglomerate<const D: usize>(
     affinities: &Array<f64, IxDyn>,
     offsets: Vec<Vec<usize>>,
-    edges: Vec<AgglomEdge>,
+    mut edges: Vec<AgglomEdge>,
     mut seeds: Array<usize, IxDyn>,
 ) -> Array<usize, IxDyn> {
-    let num_nodes = seeds.len() + 1;
+    let mut counts = seeds.iter().map(|s| *s).counts();
+    let zeros_count = match counts.remove(&0) {
+        Some(x) => x,
+        None => 0,
+    };
+    let num_nodes = zeros_count + counts.len();
+    let max_seed = *counts.keys().max().unwrap_or(&0);
+
+    let mut id_to_seed: Vec<usize> = counts
+        .keys()
+        .map(|k| *k)
+        .chain((max_seed + 1)..(max_seed + 1 + zeros_count))
+        .collect();
+
+    let seed_to_id: HashMap<usize, usize> = id_to_seed
+        .iter()
+        .enumerate()
+        .map(|(ind, val)| (*val, ind))
+        .collect();
+
+    let mut next_id = (max_seed + 1)..;
+    seeds.iter_mut().for_each(|x| {
+        if *x == 0 {
+            *x = *seed_to_id.get(&next_id.next().unwrap()).unwrap();
+        } else {
+            *x = *seed_to_id.get(x).unwrap();
+        }
+    });
+
+    (0..counts.len()).for_each(|id1|{
+        ((id1+1)..counts.len()).for_each(|id2| {
+            edges.push(AgglomEdge(false, id1, id2));
+        })
+    });
 
     let sorted_edges = get_edges::<D>(affinities, offsets, edges, &seeds);
 
@@ -183,6 +216,18 @@ pub fn agglomerate<const D: usize>(
     clustering.process_edges(sorted_edges);
 
     clustering.map(&mut seeds);
+
+    counts.keys().for_each(|seed| {
+        let id = seed_to_id.get(seed).unwrap();
+        let rep_id = clustering.positives.clusters.find(*id);
+        if *id != rep_id {
+            id_to_seed[rep_id] = *seed;
+        }
+    });
+
+    seeds.iter_mut().for_each(|x| {
+        *x = id_to_seed[*x];
+    });
 
     return seeds;
 }
@@ -245,11 +290,10 @@ mod tests {
         ]
         .into_dyn()
             - 0.5;
-        let seeds = array![[1, 2, 3], [4, 5, 6], [7, 8, 9]].into_dyn();
+        let seeds = array![[1, 2, 0], [4, 0, 0], [0, 0, 0]].into_dyn();
         let offsets = vec![vec![0, 1], vec![1, 0]];
         let components = agglomerate::<2>(&affinities, offsets, vec![], seeds);
-        println!("{:?}", components);
-        assert!(components.into_iter().unique().collect::<Vec<usize>>() == vec![1, 2, 4, 5]);
+        assert!(components.into_iter().unique().collect::<Vec<usize>>() == vec![1, 2, 3, 4]);
     }
     // #[bench]
     // fn bench_agglom(b: &mut Bencher) {

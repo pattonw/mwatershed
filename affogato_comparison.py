@@ -7,7 +7,7 @@ import time
 
 shape = [100, 100, 100]
 offsets = [(0, 0, 1), (0, 1, 0), (1, 0, 0)]
-nodes = np.array(range(np.prod(shape)), dtype=np.uint64).reshape(shape)
+nodes = np.zeros(shape, dtype=np.uint64)
 affinities = np.random.randn(3, *shape)
 
 t1 = time.time()
