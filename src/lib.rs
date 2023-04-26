@@ -174,7 +174,6 @@ pub fn agglomerate<const D: usize>(
     mut edges: Vec<AgglomEdge>,
     mut seeds: Array<usize, IxDyn>,
 ) -> Array<usize, IxDyn> {
-
     // TODO: improve seed handling
     // currently maps seeds -> ids (consecutive ints)
     // then maps ids -> clustered_ids
@@ -209,8 +208,8 @@ pub fn agglomerate<const D: usize>(
         }
     });
 
-    (0..counts.len()).for_each(|id1|{
-        ((id1+1)..counts.len()).for_each(|id2| {
+    (0..counts.len()).for_each(|id1| {
+        ((id1 + 1)..counts.len()).for_each(|id2| {
             edges.push(AgglomEdge(false, id1, id2));
         })
     });
@@ -223,7 +222,6 @@ pub fn agglomerate<const D: usize>(
     clustering.process_edges(sorted_edges);
 
     clustering.map(&mut seeds);
-
 
     // TODO: Fix seed handling
     // now we have to remap back onto the original ids
@@ -252,7 +250,10 @@ fn agglom<'py>(
     edges: Option<Vec<(bool, usize, usize)>>,
 ) -> PyResult<&'py PyArrayDyn<usize>> {
     let affinities = unsafe { affinities.as_array() }.to_owned();
-    let seeds = unsafe { seeds.expect("Seeds not provided!").as_array() }.to_owned();
+    let seeds = match seeds {
+        Some(seeds) => unsafe { seeds.as_array() }.to_owned(),
+        None => Array::zeros(&affinities.shape()[1..]),
+    };
     let dim = seeds.dim().ndim();
     let edges: Vec<AgglomEdge> = edges
         .unwrap_or(vec![])
