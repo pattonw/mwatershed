@@ -174,6 +174,12 @@ pub fn agglomerate<const D: usize>(
     mut edges: Vec<AgglomEdge>,
     mut seeds: Array<usize, IxDyn>,
 ) -> Array<usize, IxDyn> {
+
+    // TODO: improve seed handling
+    // currently maps seeds -> ids (consecutive ints)
+    // then maps ids -> clustered_ids
+    // then maps clustered_ids -> seeds
+    // slow, but most of the time is still taken by the clustering algorithm
     let mut counts = seeds.iter().map(|s| *s).counts();
     let zeros_count = match counts.remove(&0) {
         Some(x) => x,
@@ -209,6 +215,7 @@ pub fn agglomerate<const D: usize>(
         })
     });
 
+    // main algorithm
     let sorted_edges = get_edges::<D>(affinities, offsets, edges, &seeds);
 
     let mut clustering = Clustering::new(num_nodes);
@@ -217,6 +224,9 @@ pub fn agglomerate<const D: usize>(
 
     clustering.map(&mut seeds);
 
+
+    // TODO: Fix seed handling
+    // now we have to remap back onto the original ids
     counts.keys().for_each(|seed| {
         let id = seed_to_id.get(seed).unwrap();
         let rep_id = clustering.positives.clusters.find(*id);
