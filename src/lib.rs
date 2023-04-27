@@ -64,7 +64,7 @@ pub fn get_edges<const D: usize>(
         });
     affs.into_iter()
         .zip(edges.into_iter())
-        .sorted_unstable_by(|a, b| Ord::cmp(&a.0, &b.0))
+        .sorted_unstable_by(|a, b| Ord::cmp(&b.0, &a.0))
         .map(|(_aff, edge)| edge)
         .collect()
 }
@@ -174,67 +174,45 @@ pub fn agglomerate<const D: usize>(
     mut edges: Vec<AgglomEdge>,
     mut seeds: Array<usize, IxDyn>,
 ) -> Array<usize, IxDyn> {
-    // TODO: improve seed handling
-    // currently maps seeds -> ids (consecutive ints)
-    // then maps ids -> clustered_ids
-    // then maps clustered_ids -> seeds
-    // slow, but most of the time is still taken by the clustering algorithm
-    let mut counts = seeds.iter().map(|s| *s).counts();
-    let zeros_count = match counts.remove(&0) {
-        Some(x) => x,
-        None => 0,
-    };
-    let num_nodes = zeros_count + counts.len();
-    let max_seed = *counts.keys().max().unwrap_or(&0);
-
-    let mut id_to_seed: Vec<usize> = counts
-        .keys()
-        .map(|k| *k)
-        .chain((max_seed + 1)..(max_seed + 1 + zeros_count))
-        .collect();
-
-    let seed_to_id: HashMap<usize, usize> = id_to_seed
-        .iter()
-        .enumerate()
-        .map(|(ind, val)| (*val, ind))
-        .collect();
-
-    let mut next_id = (max_seed + 1)..;
-    seeds.iter_mut().for_each(|x| {
-        if *x == 0 {
-            *x = *seed_to_id.get(&next_id.next().unwrap()).unwrap();
-        } else {
-            *x = *seed_to_id.get(x).unwrap();
+    // relabel to consecutive ids
+    let mut lookup = HashMap::new();
+    seeds.iter_mut().enumerate().for_each(|(ind, x)| match x {
+        0 => *x = ind,
+        k => {
+            let id = *lookup.get(k).unwrap_or(&ind);
+            lookup.insert(*k, id);
+            *k = id;
         }
     });
 
-    (0..counts.len()).for_each(|id1| {
-        ((id1 + 1)..counts.len()).for_each(|id2| {
-            edges.push(AgglomEdge(false, id1, id2));
+    let unique_seeds: Vec<&usize> = lookup.values().collect();
+    (0..unique_seeds.len()).for_each(|id1| {
+        ((id1 + 1)..unique_seeds.len()).for_each(|id2| {
+            edges.push(AgglomEdge(false, *unique_seeds[id1], *unique_seeds[id2]));
         })
     });
 
     // main algorithm
     let sorted_edges = get_edges::<D>(affinities, offsets, edges, &seeds);
 
-    let mut clustering = Clustering::new(num_nodes);
+    let mut clustering = Clustering::new(seeds.len());
 
     clustering.process_edges(sorted_edges);
 
     clustering.map(&mut seeds);
 
     // TODO: Fix seed handling
-    // now we have to remap back onto the original ids
-    counts.keys().for_each(|seed| {
-        let id = seed_to_id.get(seed).unwrap();
+    // now we have to remap seeded entries back onto the original ids
+    let mut rev_lookup = HashMap::with_capacity(lookup.len());
+    rev_lookup.insert(0, seeds.len());
+    lookup.iter().for_each(|(seed, id)| {
         let rep_id = clustering.positives.clusters.find(*id);
         if *id != rep_id {
-            id_to_seed[rep_id] = *seed;
+            rev_lookup.insert(rep_id, *seed);
         }
     });
-
     seeds.iter_mut().for_each(|x| {
-        *x = id_to_seed[*x];
+        *x = *rev_lookup.get(x).unwrap_or(x);
     });
 
     return seeds;

@@ -5,7 +5,7 @@ import mwatershed
 
 import time
 
-shape = [50, 50, 50]
+shape = [100, 100, 100]
 offsets = [(0, 0, 1), (0, 1, 0), (1, 0, 0)]
 nodes = np.zeros(shape, dtype=np.uint64)
 affinities = np.random.randn(3, *shape)
