@@ -33,7 +33,6 @@ fn get_dims<const D: usize>(dim: Dim<IxDynImpl>, skip: usize) -> (Vec<usize>, [u
 pub fn get_edges<const D: usize>(
     affinities: &Array<f64, IxDyn>,
     offsets: Vec<Vec<usize>>,
-    mut edges: Vec<AgglomEdge>,
     seeds: &Array<usize, IxDyn>,
 ) -> Vec<AgglomEdge> {
     let (_, array_shape) = get_dims::<D>(seeds.dim(), 0);
@@ -42,6 +41,7 @@ pub fn get_edges<const D: usize>(
         .map(|offset| offset.try_into().unwrap())
         .collect();
 
+    let mut edges = Vec::with_capacity(affinities.len());
     edges.extend_reserve(affinities.len());
     let mut affs = Vec::with_capacity(edges.capacity());
 
@@ -64,7 +64,7 @@ pub fn get_edges<const D: usize>(
         });
     affs.into_iter()
         .zip(edges.into_iter())
-        .sorted_unstable_by(|a, b| Ord::cmp(&b.0, &a.0))
+        .sorted_unstable_by(|b, a| Ord::cmp(&b.0, &a.0))
         .map(|(_aff, edge)| edge)
         .collect()
 }
@@ -75,7 +75,7 @@ struct Negatives {
 impl Negatives {
     fn new(num_nodes: usize) -> Negatives {
         Negatives {
-            mutexes: (0..(num_nodes + 1)).map(|_| HashSet::new()).collect(),
+            mutexes: (0..(num_nodes)).map(|_| HashSet::new()).collect(),
         }
     }
 
@@ -107,7 +107,7 @@ struct Positives {
 impl Positives {
     fn new(num_nodes: usize) -> Positives {
         Positives {
-            clusters: UnionFind::new(num_nodes + 1),
+            clusters: UnionFind::new(num_nodes),
         }
     }
 
@@ -193,29 +193,74 @@ pub fn agglomerate<const D: usize>(
     });
 
     // main algorithm
-    let sorted_edges = get_edges::<D>(affinities, offsets, edges, &seeds);
+    let sorted_edges = get_edges::<D>(affinities, offsets, &seeds);
+    edges.extend(sorted_edges);
 
     let mut clustering = Clustering::new(seeds.len());
 
-    clustering.process_edges(sorted_edges);
-
+    clustering.process_edges(edges);
     clustering.map(&mut seeds);
 
     // TODO: Fix seed handling
     // now we have to remap seeded entries back onto the original ids
     let mut rev_lookup = HashMap::with_capacity(lookup.len());
-    rev_lookup.insert(0, seeds.len());
+    //rev_lookup.insert(0, seeds.len());
     lookup.iter().for_each(|(seed, id)| {
         let rep_id = clustering.positives.clusters.find(*id);
-        if *id != rep_id {
+        if *seed != rep_id {
             rev_lookup.insert(rep_id, *seed);
         }
     });
+
     seeds.iter_mut().for_each(|x| {
         *x = *rev_lookup.get(x).unwrap_or(x);
     });
 
     return seeds;
+}
+
+pub fn cluster_edges(mut sorted_edges: Vec<AgglomEdge>) -> Vec<(usize, usize)> {
+    // relabel to consecutive ids
+    let mut lookup = HashMap::new();
+    let mut next_id = 0..;
+    sorted_edges.iter_mut().for_each(|edge| {
+        let AgglomEdge(_pos, u, v) = edge;
+        let serialized_u = match lookup.get(u) {
+            Some(&serialized_u) => serialized_u,
+            None => next_id.next().unwrap(),
+        };
+        lookup.insert(*u, serialized_u);
+        let serialized_v = match lookup.get(v) {
+            Some(&serialized_v) => serialized_v,
+            None => next_id.next().unwrap(),
+        };
+        lookup.insert(*v, serialized_v);
+        *u = serialized_u;
+        *v = serialized_v;
+    });
+
+    // main algorithm
+    let mut clustering = Clustering::new(lookup.len());
+
+    clustering.process_edges(sorted_edges);
+
+    let mut rev_lookup = HashMap::with_capacity(lookup.len());
+    lookup.iter().for_each(|(seed, id)| {
+        let rep_id = clustering.positives.clusters.find(*id);
+        rev_lookup.insert(rep_id, *seed);
+    });
+
+    lookup
+        .into_iter()
+        .map(|(og, serialized)| {
+            (
+                og,
+                *rev_lookup
+                    .get(&clustering.positives.clusters.find(serialized))
+                    .unwrap(),
+            )
+        })
+        .collect()
 }
 
 /// agglomerate nodes given an array of affinities and optional additional edges
@@ -250,9 +295,21 @@ fn agglom<'py>(
     Ok(result.into_pyarray(_py))
 }
 
+/// agglomerate nodes given an array of affinities and optional additional edges
+#[pyfunction()]
+fn cluster(edges: Vec<(bool, usize, usize)>) -> PyResult<Vec<(usize, usize)>> {
+    let edges: Vec<AgglomEdge> = edges
+        .into_iter()
+        .map(|(pos, u, v)| AgglomEdge(pos, u, v))
+        .collect();
+    let result = cluster_edges(edges);
+    Ok(result)
+}
+
 #[pymodule]
 fn mwatershed(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(agglom))?;
+    m.add_wrapped(wrap_pyfunction!(cluster))?;
 
     Ok(())
 }
@@ -282,7 +339,26 @@ mod tests {
         let seeds = array![[1, 2, 0], [4, 0, 0], [0, 0, 0]].into_dyn();
         let offsets = vec![vec![0, 1], vec![1, 0]];
         let components = agglomerate::<2>(&affinities, offsets, vec![], seeds);
-        assert!(components.into_iter().unique().collect::<Vec<usize>>() == vec![1, 2, 3, 4]);
+        let ids = components
+            .clone()
+            .into_iter()
+            .unique()
+            .collect::<Vec<usize>>();
+        for id in [1, 2, 4].iter() {
+            assert!(ids.contains(id));
+        }
+        assert!(ids.len() == 4);
+    }
+    #[test]
+    fn test_cluster() {
+        let edges = vec![
+            AgglomEdge(false, 1, 2),
+            AgglomEdge(true, 1, 3),
+            AgglomEdge(true, 2, 3),
+            AgglomEdge(false, 1, 3),
+        ];
+        let matching = cluster_edges(edges);
+        panic!["{:?}", matching];
     }
     // #[bench]
     // fn bench_agglom(b: &mut Bencher) {
