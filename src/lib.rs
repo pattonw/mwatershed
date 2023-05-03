@@ -64,7 +64,7 @@ pub fn get_edges<const D: usize>(
         });
     affs.into_iter()
         .zip(edges.into_iter())
-        .sorted_unstable_by(|b, a| Ord::cmp(&b.0, &a.0))
+        .sorted_unstable_by(|a, b| Ord::cmp(&b.0, &a.0))
         .map(|(_aff, edge)| edge)
         .collect()
 }
