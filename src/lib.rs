@@ -35,7 +35,7 @@ pub fn get_edges<const D: usize>(
     offsets: Vec<Vec<usize>>,
     seeds: &Array<usize, IxDyn>,
 ) -> Vec<AgglomEdge> {
-    let (_, array_shape) = get_dims::<D>(seeds.dim(), 0);
+    // let (_, array_shape) = get_dims::<D>(seeds.dim(), 0);
     let offsets: Vec<[usize; D]> = offsets
         .into_iter()
         .map(|offset| offset.try_into().unwrap())
