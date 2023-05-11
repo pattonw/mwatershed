@@ -19,7 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         rust: [nightly]
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.7, 3.8, 3.9, 3.10, 3.11]
         platform:
           [
             {
@@ -65,7 +65,7 @@ jobs:
         run: pip install maturin
 
       - name: publish
-        run: maturin publish -u __token__ -p ${{ secrets.PYPI_API_TOKEN }} -i $(which python)
+        run: maturin publish -u __token__ -p ${{ secrets.PYPI_API_TOKEN }} -i $(which python) --skip-existing
 
     env:
       CARGO_TERM_VERBOSE: true
