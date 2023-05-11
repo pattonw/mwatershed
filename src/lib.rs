@@ -1,9 +1,11 @@
+#![feature(test)]
+#![feature(binary_heap_drain_sorted)]
 #![feature(extend_one)]
 
 use disjoint_sets::UnionFind;
 
 use itertools::Itertools;
-use ndarray::{Array, Axis, Dim, IxDynImpl, Slice};
+use ndarray::{Array, Axis, Slice};
 use ndarray::{Dimension, IxDyn};
 use numpy::{IntoPyArray, PyArrayDyn};
 
