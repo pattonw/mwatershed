@@ -61,6 +61,9 @@ jobs:
       - name: install
         run: pip install .
 
+      - name: install maturin
+        run: pip install maturin
+
       - name: publish
         run: maturin publish -u __token__ -p ${{ secrets.PYPI_API_TOKEN }} -i $(which python)
 
