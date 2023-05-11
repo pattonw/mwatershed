@@ -19,17 +19,6 @@ use std::convert::TryInto;
 #[derive(Debug)]
 pub struct AgglomEdge(bool, usize, usize);
 
-fn get_dims<const D: usize>(dim: Dim<IxDynImpl>, skip: usize) -> (Vec<usize>, [usize; D]) {
-    (
-        (0..skip).map(|i| dim[i]).collect(),
-        (skip..D + skip)
-            .map(|i| dim[i])
-            .collect::<Vec<usize>>()
-            .try_into()
-            .expect("Wrong number of dimensions"),
-    )
-}
-
 pub fn get_edges<const D: usize>(
     affinities: &Array<f64, IxDyn>,
     offsets: Vec<Vec<usize>>,
