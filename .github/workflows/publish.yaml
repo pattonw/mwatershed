@@ -59,7 +59,7 @@ jobs:
           components: rust-src
 
       - name: install
-        run: make install
+        run: pip install .
 
       - name: publish
         run: maturin publish -u __token__ -p ${{ secrets.PYPI_API_TOKEN }} -i $(which python)
