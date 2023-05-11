@@ -21,13 +21,9 @@ classifiers = [
 ]
 
 
-dependencies = [
-    "numpy",
-]
-
-
 [project.optional-dependencies]
 dev = [
+    "numpy",
     "bumpversion",
     "wheel",
     "ruff",
