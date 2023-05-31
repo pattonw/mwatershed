@@ -23,11 +23,11 @@ pub struct AgglomEdge(bool, usize, usize);
 
 pub fn get_edges<const D: usize>(
     affinities: &Array<f64, IxDyn>,
-    offsets: Vec<Vec<usize>>,
+    offsets: Vec<Vec<isize>>,
     seeds: &Array<usize, IxDyn>,
 ) -> Vec<AgglomEdge> {
     // let (_, array_shape) = get_dims::<D>(seeds.dim(), 0);
-    let offsets: Vec<[usize; D]> = offsets
+    let offsets: Vec<[isize; D]> = offsets
         .into_iter()
         .map(|offset| offset.try_into().unwrap())
         .collect();
@@ -41,11 +41,33 @@ pub fn get_edges<const D: usize>(
         .enumerate()
         .for_each(|(offset_index, offset)| {
             let all_offset_affs = affinities.index_axis(Axis(0), offset_index);
-            let offset_affs = all_offset_affs
-                .slice_each_axis(|ax| Slice::from(0..(ax.len - offset[ax.axis.index()])));
-            let u_seeds =
-                seeds.slice_each_axis(|ax| Slice::from(0..(ax.len - offset[ax.axis.index()])));
-            let v_seeds = seeds.slice_each_axis(|ax| Slice::from(offset[ax.axis.index()]..));
+            let offset_affs = all_offset_affs.slice_each_axis(|ax| {
+                Slice::from(
+                    std::cmp::max(0, -offset[ax.axis.index()])
+                        ..std::cmp::min(
+                            ax.len as isize,
+                            (ax.len as isize) - offset[ax.axis.index()],
+                        ),
+                )
+            });
+            let u_seeds = seeds.slice_each_axis(|ax| {
+                Slice::from(
+                    std::cmp::max(0, -offset[ax.axis.index()])
+                        ..std::cmp::min(
+                            ax.len as isize,
+                            (ax.len as isize) - offset[ax.axis.index()],
+                        ),
+                )
+            });
+            let v_seeds = seeds.slice_each_axis(|ax| {
+                Slice::from(
+                    std::cmp::max(0, offset[ax.axis.index()])
+                        ..std::cmp::min(
+                            ax.len as isize,
+                            (ax.len as isize) + offset[ax.axis.index()],
+                        ),
+                )
+            });
             offset_affs.indexed_iter().for_each(|(index, aff)| {
                 let u = u_seeds[&index];
                 let v = v_seeds[&index];
@@ -161,7 +183,7 @@ impl Clustering {
 
 pub fn agglomerate<const D: usize>(
     affinities: &Array<f64, IxDyn>,
-    offsets: Vec<Vec<usize>>,
+    offsets: Vec<Vec<isize>>,
     mut edges: Vec<AgglomEdge>,
     mut seeds: Array<usize, IxDyn>,
 ) -> Array<usize, IxDyn> {
@@ -259,7 +281,7 @@ pub fn cluster_edges(mut sorted_edges: Vec<AgglomEdge>) -> Vec<(usize, usize)> {
 fn agglom<'py>(
     _py: Python<'py>,
     affinities: &PyArrayDyn<f64>,
-    offsets: Vec<Vec<usize>>,
+    offsets: Vec<Vec<isize>>,
     seeds: Option<&PyArrayDyn<usize>>,
     edges: Option<Vec<(bool, usize, usize)>>,
 ) -> PyResult<&'py PyArrayDyn<usize>> {
@@ -329,6 +351,27 @@ mod tests {
             - 0.5;
         let seeds = array![[1, 2, 0], [4, 0, 0], [0, 0, 0]].into_dyn();
         let offsets = vec![vec![0, 1], vec![1, 0]];
+        let components = agglomerate::<2>(&affinities, offsets, vec![], seeds);
+        let ids = components
+            .clone()
+            .into_iter()
+            .unique()
+            .collect::<Vec<usize>>();
+        for id in [1, 2, 4].iter() {
+            assert!(ids.contains(id));
+        }
+        assert!(ids.len() == 4);
+    }
+    #[test]
+    fn test_agglom_negative_offsets() {
+        let affinities = array![
+            [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0]],
+            [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [0.0, 0.0, 0.0]]
+        ]
+        .into_dyn()
+            - 0.5;
+        let seeds = array![[1, 2, 0], [4, 0, 0], [0, 0, 0]].into_dyn();
+        let offsets = vec![vec![0, -1], vec![-1, 0]];
         let components = agglomerate::<2>(&affinities, offsets, vec![], seeds);
         let ids = components
             .clone()

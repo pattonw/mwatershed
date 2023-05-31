@@ -52,6 +52,29 @@ def test_agglom_2d():
     assert (components == 5).sum() == 4
 
 
+def test_agglom_2d_negative_offsets():
+    offsets = [(0, -1), (-1, 0)]
+    affinities = (
+        np.array(
+            [[[0, 1, 0], [0, 1, 0], [0, 1, 0]], [[0, 0, 0], [1, 1, 1], [0, 0, 0]]],
+            dtype=float,
+        )
+        - 0.5
+    )
+    # 9 nodes. connecting edges:
+    # 2-3, 5-6, 8-9, 4-7, 5-8, 6-9
+    # components: [(1,),(2,3),(4,7),(5,6,8,9)]
+
+    components = mwatershed.agglom(affinities, offsets)
+
+    # assert False, components
+
+    # assert (components == 1).sum() == 1
+    # assert (components == 2).sum() == 2
+    # assert (components == 4).sum() == 2
+    # assert (components == 5).sum() == 4
+
+
 def test_agglom_2d_with_extra_edges():
     nodes = np.array([[1, 0, 0], [0, 0, 0], [0, 0, 9]], dtype=np.uint64)
     offsets = [(0, 1), (1, 0)]
