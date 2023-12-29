@@ -126,6 +126,17 @@ impl Clustering {
             *x = self.positives.clusters.find(*x);
         });
     }
+
+    /// Map a vector of node ids to their representative node ids, replacing
+    /// nodes that have been filtered out with 0.
+    pub fn filter_map(&self, seeds: &mut Array<usize, IxDyn>, filtered_nodes: HashSet<usize>) {
+        seeds
+            .iter_mut()
+            .for_each(|x| match filtered_nodes.contains(x) {
+                false => *x = self.positives.clusters.find(*x),
+                true => *x = self.positives.clusters.len(),
+            });
+    }
 }
 
 #[cfg(test)]
