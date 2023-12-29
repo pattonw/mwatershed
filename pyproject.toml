@@ -3,7 +3,7 @@ requires = ["maturin==1.0.0b2"]
 build-backend = "maturin"
 
 [project]
-authors = [{name="William Hunter Patton", email= "pattonw@hhmi.org"}]
+authors = [{ name = "William Hunter Patton", email = "pattonw@hhmi.org" }]
 name = "mwatershed"
 version = "0.1.0"
 description = "A rusty mutex watershed"
@@ -20,10 +20,11 @@ classifiers = [
     'Programming Language :: Python :: 3.8',
 ]
 
+[deps]
+numpy = ">=1.18.0"
 
 [project.optional-dependencies]
 dev = [
-    "numpy",
     "bumpversion",
     "wheel",
     "ruff",
@@ -32,4 +33,5 @@ dev = [
     "twine",
     "pytest",
     "pytest-runner",
+    "matplotlib>=3.1.0",
 ]
