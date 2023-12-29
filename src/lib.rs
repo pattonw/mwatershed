@@ -37,6 +37,8 @@ pub fn get_edges<const D: usize>(
     edges.extend_reserve(affinities.len());
     let mut affs = Vec::with_capacity(edges.capacity());
 
+    let mut to_filter: HashSet<usize> = HashSet::from_iter(seeds.iter().map(|x| *x));
+
     offsets
         .iter()
         .enumerate()
@@ -76,10 +78,22 @@ pub fn get_edges<const D: usize>(
                 edges.push(AgglomEdge(aff > &0.0, u, v))
             });
         });
-    affs.into_iter()
+    let agglom_edges: Vec<AgglomEdge> = affs
+        .into_iter()
         .zip(edges.into_iter())
         .sorted_unstable_by(|a, b| Ord::cmp(&b.0, &a.0))
         .map(|(_aff, edge)| edge)
+        .collect();
+    agglom_edges.iter().for_each(|edge| {
+        let AgglomEdge(pos, u, v) = edge;
+        if *pos {
+            to_filter.remove(u);
+            to_filter.remove(v);
+        }
+    });
+    agglom_edges
+        .into_iter()
+        .filter(|edge| !(to_filter.contains(&edge.1) || to_filter.contains(&edge.2)))
         .collect()
 }
 
