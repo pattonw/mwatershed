@@ -23,10 +23,12 @@ def test_agglom_3d():
 
     components = mwatershed.agglom(affinities, offsets)
 
-    assert set(np.unique(components)) == set([1, 4])
+    _, counts = np.unique(components, return_counts=True)
+    counts = sorted(counts)
+    assert len(np.unique(components)) == 2
 
-    assert (components == 1).sum() == 4
-    assert (components == 4).sum() == 4
+    assert counts[0] == 4
+    assert counts[1] == 4
 
 
 def test_agglom_2d():
@@ -44,19 +46,21 @@ def test_agglom_2d():
 
     components = mwatershed.agglom(affinities, offsets)
 
-    assert len(np.unique(components)) == 4
+    _, counts = np.unique(components, return_counts=True)
+    counts = sorted(counts)
+    assert len(counts) == 4
 
-    assert (components == 1).sum() == 1
-    assert (components == 2).sum() == 2
-    assert (components == 4).sum() == 2
-    assert (components == 5).sum() == 4
+    assert counts[0] == 1
+    assert counts[1] == 2
+    assert counts[2] == 2
+    assert counts[3] == 4
 
 
 def test_agglom_2d_negative_offsets():
     offsets = [(0, -1), (-1, 0)]
     affinities = (
         np.array(
-            [[[0, 1, 0], [0, 1, 0], [0, 1, 0]], [[0, 0, 0], [1, 1, 1], [0, 0, 0]]],
+            [[[0, 0, 1], [0, 0, 1], [0, 0, 1]], [[0, 0, 0], [0, 0, 0], [1, 1, 1]]],
             dtype=float,
         )
         - 0.5
@@ -67,12 +71,14 @@ def test_agglom_2d_negative_offsets():
 
     components = mwatershed.agglom(affinities, offsets)
 
-    # assert False, components
+    _, counts = np.unique(components, return_counts=True)
+    counts = sorted(counts)
+    assert len(counts) == 4
 
-    # assert (components == 1).sum() == 1
-    # assert (components == 2).sum() == 2
-    # assert (components == 4).sum() == 2
-    # assert (components == 5).sum() == 4
+    assert counts[0] == 1
+    assert counts[1] == 2
+    assert counts[2] == 2
+    assert counts[3] == 4
 
 
 def test_agglom_2d_with_extra_edges():
@@ -92,8 +98,10 @@ def test_agglom_2d_with_extra_edges():
 
     components = mwatershed.agglom(affinities, offsets, seeds=nodes, edges=edges)
 
-    assert set(np.unique(components)) == set([1, 2, 4])
+    _, counts = np.unique(components, return_counts=True)
+    counts = sorted(counts)
+    assert len(counts) == 3
 
-    assert (components == 1).sum() == 5
-    assert (components == 2).sum() == 2
-    assert (components == 4).sum() == 2
+    assert counts[0] == 2
+    assert counts[1] == 2
+    assert counts[2] == 5
