@@ -117,6 +117,12 @@ pub fn agglomerate<const D: usize>(
         }
     });
 
+    // update edges from seed ids to node ids:
+    edges.iter_mut().for_each(|AgglomEdge(_pos, u, v)| {
+        *u = lookup[u];
+        *v = lookup[v];
+    });
+
     let unique_seeds: Vec<&usize> = lookup.values().collect();
     (0..unique_seeds.len()).for_each(|id1| {
         ((id1 + 1)..unique_seeds.len()).for_each(|id2| {
