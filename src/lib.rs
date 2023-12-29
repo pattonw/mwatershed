@@ -79,7 +79,7 @@ pub fn get_edges<const D: usize>(
         });
     let agglom_edges: Vec<AgglomEdge> = affs
         .into_iter()
-        .zip(edges.into_iter())
+        .zip(edges)
         .sorted_unstable_by(|a, b| Ord::cmp(&b.0, &a.0))
         .map(|(_aff, edge)| edge)
         .collect();
