@@ -332,15 +332,29 @@ mod tests {
     use super::*;
     use itertools::Itertools;
     use ndarray::array;
-    use ndarray::Array;
-    use ndarray_rand::rand::SeedableRng;
-    use ndarray_rand::rand_distr::Normal;
-    use ndarray_rand::RandomExt;
-    use rand_isaac::isaac64::Isaac64Rng;
-    // use test::Bencher;
+    extern crate test;
 
-    static BENCH_SIZE: usize = 50;
-
+    /// Seeds
+    /// 1 2 0
+    /// 4 0 0
+    /// 0 0 0
+    ///
+    /// Affs
+    /// offset [0, 1]
+    /// 0 1 0
+    /// 0 1 0
+    /// 0 1 0
+    ///
+    /// offset [1, 0]
+    /// 0 0 0
+    /// 1 1 1
+    /// 0 0 0
+    ///
+    /// Expected Components
+    /// 1 2 2
+    /// 4 x x
+    /// 4 x x
+    ///
     #[test]
     fn test_agglom() {
         let affinities = array![
@@ -358,15 +372,38 @@ mod tests {
             .unique()
             .collect::<Vec<usize>>();
         for id in [1, 2, 4].iter() {
-            assert!(ids.contains(id));
+            assert!(ids.contains(id), "{:?}", components);
         }
-        assert!(ids.len() == 4);
+        assert!(!ids.contains(&0), "{:?}", components);
+        assert!(ids.len() == 4, "{:?}", components);
     }
+
+    /// Seeds
+    /// 1 2 0
+    /// 4 0 0
+    /// 0 0 0
+    ///
+    /// Affs
+    /// offset [0, -1]
+    /// 0 0 1
+    /// 0 0 1
+    /// 0 0 1
+    ///
+    /// offset [-1, 0]
+    /// 0 0 0
+    /// 0 0 0
+    /// 1 1 1
+    ///
+    /// Expected Components
+    /// 1 2 2
+    /// 4 x x
+    /// 4 x x
+    ///
     #[test]
     fn test_agglom_negative_offsets() {
         let affinities = array![
-            [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0]],
-            [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [0.0, 0.0, 0.0]]
+            [[0.0, 0.0, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]],
+            [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]
         ]
         .into_dyn()
             - 0.5;
@@ -379,9 +416,10 @@ mod tests {
             .unique()
             .collect::<Vec<usize>>();
         for id in [1, 2, 4].iter() {
-            assert!(ids.contains(id));
+            assert!(ids.contains(id), "{:?}", components);
         }
-        assert!(ids.len() == 4);
+        assert!(!ids.contains(&0), "{:?}", components);
+        assert!(ids.len() == 4, "{:?}", components);
     }
     #[test]
     fn test_cluster() {
@@ -392,32 +430,5 @@ mod tests {
             AgglomEdge(false, 1, 3),
         ];
         let matching = cluster_edges(edges);
-        panic!["{:?}", matching];
     }
-    // #[bench]
-    // fn bench_agglom(b: &mut Bencher) {
-    //     // Get a seeded random number generator for reproducibility (Isaac64 algorithm)
-    //     let seed = 42;
-    //     let mut rng = Isaac64Rng::seed_from_u64(seed);
-
-    //     // Generate a random array using `rng`
-    //     let affinities = Array::random_using(
-    //         (2, BENCH_SIZE, BENCH_SIZE),
-    //         Normal::new(0., 1.0).unwrap(),
-    //         &mut rng,
-    //     )
-    //     .into_dyn();
-
-    //     b.iter(|| {
-    //         agglomerate::<2>(
-    //             &affinities,
-    //             vec![vec![0, 1], vec![1, 0]],
-    //             vec![],
-    //             Array::from_iter(0..BENCH_SIZE.pow(2))
-    //                 .into_shape((BENCH_SIZE, BENCH_SIZE))
-    //                 .unwrap()
-    //                 .into_dyn(),
-    //         )
-    //     });
-    // }
 }
