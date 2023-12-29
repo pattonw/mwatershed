@@ -180,7 +180,7 @@ pub fn cluster_edges(mut sorted_edges: Vec<AgglomEdge>) -> Vec<(usize, usize)> {
 
 /// agglomerate nodes given an array of affinities and optional additional edges
 #[pyfunction()]
-fn agglom<'py>(
+fn agglom_rs<'py>(
     _py: Python<'py>,
     affinities: &PyArrayDyn<f64>,
     offsets: Vec<Vec<isize>>,
@@ -223,7 +223,7 @@ fn cluster(edges: Vec<(bool, usize, usize)>) -> PyResult<Vec<(usize, usize)>> {
 
 #[pymodule]
 fn mwatershed(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_wrapped(wrap_pyfunction!(agglom))?;
+    m.add_wrapped(wrap_pyfunction!(agglom_rs))?;
     m.add_wrapped(wrap_pyfunction!(cluster))?;
 
     Ok(())
