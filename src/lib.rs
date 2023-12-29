@@ -2,8 +2,6 @@
 #![feature(binary_heap_drain_sorted)]
 #![feature(extend_one)]
 
-use disjoint_sets::UnionFind;
-
 use itertools::Itertools;
 use ndarray::{Array, Axis, Slice};
 use ndarray::{Dimension, IxDyn};
@@ -17,9 +15,12 @@ use ordered_float::NotNan;
 use std;
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
+use std::iter::FromIterator;
 
-#[derive(Debug)]
-pub struct AgglomEdge(bool, usize, usize);
+mod clustering;
+mod labels;
+
+use clustering::{AgglomEdge, Clustering};
 
 pub fn get_edges<const D: usize>(
     affinities: &Array<f64, IxDyn>,
@@ -80,105 +81,6 @@ pub fn get_edges<const D: usize>(
         .sorted_unstable_by(|a, b| Ord::cmp(&b.0, &a.0))
         .map(|(_aff, edge)| edge)
         .collect()
-}
-
-struct Negatives {
-    mutexes: Vec<HashSet<usize>>,
-}
-impl Negatives {
-    fn new(num_nodes: usize) -> Negatives {
-        Negatives {
-            mutexes: (0..(num_nodes)).map(|_| HashSet::new()).collect(),
-        }
-    }
-
-    fn mutex(&self, a: usize, b: usize) -> bool {
-        self.mutexes[a].contains(&b)
-    }
-
-    fn merge(&mut self, a: usize, b: usize) {
-        // empty b mutex edges
-        let b_mutexes = std::mem::replace(&mut self.mutexes[b], HashSet::with_capacity(0));
-        // for each x-b mutex edge, replace with x-a edge
-        for mutex_node in b_mutexes.iter() {
-            self.mutexes[*mutex_node].remove(&b);
-            let inserted = self.mutexes[*mutex_node].insert(a);
-            if inserted {
-                self.mutexes[a].insert(*mutex_node);
-            }
-        }
-    }
-
-    fn insert(&mut self, a: usize, b: usize) {
-        self.mutexes[a].insert(b);
-        self.mutexes[b].insert(a);
-    }
-}
-struct Positives {
-    clusters: UnionFind<usize>,
-}
-impl Positives {
-    fn new(num_nodes: usize) -> Positives {
-        Positives {
-            clusters: UnionFind::new(num_nodes),
-        }
-    }
-
-    fn merge(&mut self, a: usize, b: usize) {
-        self.clusters.union(a, b);
-    }
-}
-
-struct Clustering {
-    positives: Positives,
-    negatives: Negatives,
-}
-
-impl Clustering {
-    fn new(num_nodes: usize) -> Clustering {
-        return Clustering {
-            positives: Positives::new(num_nodes),
-            negatives: Negatives::new(num_nodes),
-        };
-    }
-
-    fn merge(&mut self, a: usize, b: usize) {
-        self.positives.merge(a, b);
-        let rep = self.positives.clusters.find(a);
-        match a == rep {
-            true => self.negatives.merge(a, b),
-            false => self.negatives.merge(b, a),
-        }
-    }
-
-    fn process_edges(&mut self, sorted_edges: Vec<AgglomEdge>) {
-        sorted_edges.into_iter().for_each(|edge| {
-            let AgglomEdge(pos, u, v) = edge;
-            if !self.positives.clusters.equiv(u, v) {
-                let u_rep = self.positives.clusters.find(u);
-                let v_rep = self.positives.clusters.find(v);
-
-                if !self.negatives.mutex(u_rep, v_rep) {
-                    let (new_id, old_id) = match u_rep < v_rep {
-                        true => (u_rep, v_rep),
-                        false => (v_rep, u_rep),
-                    };
-                    match pos {
-                        true => self.merge(new_id, old_id),
-                        false => {
-                            self.negatives.insert(new_id, old_id);
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    fn map(&self, seeds: &mut Array<usize, IxDyn>) {
-        seeds.iter_mut().for_each(|x| {
-            *x = self.positives.clusters.find(*x);
-        });
-    }
 }
 
 pub fn agglomerate<const D: usize>(
