@@ -7,14 +7,20 @@ edition = "2018"
 pyo3 = {version="0.18.1", features = ["extension-module"] }
 numpy = "0.18.0"
 ndarray = "0.15.6"
-petgraph = "0.6.3"
 itertools = "0.10.5"
 ordered-float = "3.0"
 ndarray-rand = "0.14"
-rand_isaac = "0.3.0"
 futures = "0.3"
 disjoint-sets = "0.4.2"
+
+[dev-dependencies]
+criterion = "0.3"
+rand_isaac = "0.3.0"
 
 [lib]
 name = "mwatershed"
 crate-type = ["cdylib"]
+
+[[bench]]
+name = "agglom"
+harness = false
