@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 authors = [{ name = "William Hunter Patton", email = "pattonw@hhmi.org" }]
 name = "mwatershed"
-version = "0.5.0"
+version = "0.6.0"
 description = "A rusty mutex watershed"
 readme = "README.md"
 
