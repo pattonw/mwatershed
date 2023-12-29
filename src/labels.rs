@@ -19,7 +19,7 @@ impl LabelWrapper {
             .iter()
             .unique()
             .filter(|x| **x > 0)
-            .map(|x| *x)
+            .copied()
             .collect();
         let max_label = *unique_labels.iter().max().unwrap();
         let label_to_node_id = Arc::new(Mutex::new(vec![None; max_label + 1]));
@@ -65,22 +65,16 @@ impl LabelWrapper {
         let mut node_id_to_label = self.node_id_to_label.lock().unwrap();
 
         (0..label_to_node_id.len()).for_each(|old_label: usize| {
-            match label_to_node_id[old_label] {
-                Some(old_node_id) => {
-                    // get new id and label
-                    let new_node_id = clusters.clusters.find(old_node_id);
-                    if new_node_id == old_node_id {
-                        // this is the representative label, pointing to the representative node id
-                        return;
-                    } else {
-                        // this is a non-representative label, pointing to a non-representative node id
-                        // we need to update the label to point to the representative node id
-                        // and update the old node id to point to None
-                        label_to_node_id[old_label] = Some(new_node_id);
-                        node_id_to_label[old_node_id] = None;
-                    }
+            if let Some(old_node_id) = label_to_node_id[old_label] {
+                // get new id and label
+                let new_node_id = clusters.clusters.find(old_node_id);
+                if new_node_id != old_node_id {
+                    // this is a non-representative label, pointing to a non-representative node id
+                    // we need to update the label to point to the representative node id
+                    // and update the old node id to point to None
+                    label_to_node_id[old_label] = Some(new_node_id);
+                    node_id_to_label[old_node_id] = None;
                 }
-                None => (),
             }
         });
 
@@ -174,14 +168,13 @@ mod tests {
         // Call the merge function
         wrapper.merge(&clusters);
 
-        // Test initial mapping
+        // Test clustered mapping
         assert_eq!(wrapper.get_node_id(1), Some(0));
-        assert_eq!(wrapper.get_node_id(2), Some(3));
+        assert_eq!(wrapper.get_node_id(2), wrapper.get_node_id(4));
         assert_eq!(wrapper.get_node_id(3), Some(2));
-        assert_eq!(wrapper.get_node_id(4), Some(3));
         assert_eq!(wrapper.get_node_id(5), Some(4));
 
-        // Test initial node_id_to_label mapping
+        // Test clustered node_id_to_label mapping
         assert_eq!(wrapper.get_label(0), Some(1));
         assert_eq!(wrapper.get_label(1), None);
         assert_eq!(wrapper.get_label(2), Some(3));

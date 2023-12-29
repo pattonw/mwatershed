@@ -2,7 +2,6 @@ use disjoint_sets::UnionFind;
 
 use ndarray::Array;
 use ndarray::IxDyn;
-use std;
 use std::collections::HashSet;
 
 /// A struct to represent edges in the mutex merge graph.
@@ -76,10 +75,10 @@ pub struct Clustering {
 impl Clustering {
     /// Create a new Clustering struct with `num_nodes` nodes.
     pub fn new(num_nodes: usize) -> Clustering {
-        return Clustering {
+        Clustering {
             positives: Positives::new(num_nodes),
             negatives: Negatives::new(num_nodes),
-        };
+        }
     }
 
     /// Merge two clusters, replacing all edges to cluster a and cluster b with edges

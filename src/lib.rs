@@ -12,7 +12,6 @@ use pyo3::wrap_pyfunction;
 use pyo3::PyResult;
 
 use ordered_float::NotNan;
-use std;
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::iter::FromIterator;
@@ -37,7 +36,7 @@ pub fn get_edges<const D: usize>(
     edges.extend_reserve(affinities.len());
     let mut affs = Vec::with_capacity(edges.capacity());
 
-    let mut to_filter: HashSet<usize> = HashSet::from_iter(seeds.iter().map(|x| *x));
+    let mut to_filter: HashSet<usize> = HashSet::from_iter(seeds.iter().copied());
 
     offsets
         .iter()
@@ -157,7 +156,7 @@ pub fn agglomerate<const D: usize>(
         *x = *rev_lookup.get(x).unwrap_or(x);
     });
 
-    return seeds;
+    seeds
 }
 
 pub fn cluster_edges(mut sorted_edges: Vec<AgglomEdge>) -> Vec<(usize, usize)> {
@@ -220,7 +219,7 @@ fn agglom_rs<'py>(
     };
     let dim = seeds.dim().ndim();
     let edges: Vec<AgglomEdge> = edges
-        .unwrap_or(vec![])
+        .unwrap_or_default()
         .into_iter()
         .map(|(pos, u, v)| AgglomEdge(pos, u, v))
         .collect();
