@@ -1,10 +1,10 @@
 [package]
 name = "mwatershed"
-version = "version = '0.6.0'"
+version = "0.6.0"
 edition = "2018"
 
 [dependencies]
-pyo3 = {version="0.18.1", features = ["extension-module"] }
+pyo3 = { version = "0.18.1", features = ["extension-module"] }
 numpy = "0.18.0"
 ndarray = "0.15.6"
 itertools = "0.10.5"
