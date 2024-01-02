@@ -7,7 +7,7 @@ use rand_isaac::isaac64::Isaac64Rng;
 
 use mwatershed::agglomerate; // replace with your actual crate name and function
 
-const BENCH_SIZE: usize = 100;
+const BENCH_SIZE: usize = 20;
 
 fn bench_agglom(c: &mut Criterion) {
     // Get a seeded random number generator for reproducibility (Isaac64 algorithm)
