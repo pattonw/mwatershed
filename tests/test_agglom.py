@@ -5,7 +5,7 @@ import mwatershed
 
 def test_agglom_2d_with_strides():
     offsets = [(0, 1), (1, 0)]
-    strides = [(1, 2), (2, 1)]
+    strides = [(2, 1), (1, 2)]
     affinities = (
         np.array(
             [[[0, 1, 0], [0, 1, 0], [0, 1, 0]], [[0, 0, 0], [1, 1, 1], [0, 0, 0]]],
@@ -21,9 +21,9 @@ def test_agglom_2d_with_strides():
 
     _, counts = np.unique(components, return_counts=True)
     counts = sorted(counts)
-    assert len(counts) == 4
+    assert len(counts) == 4, components
 
-    assert counts[0] == 1
+    assert counts[0] == 2
     assert counts[1] == 2
     assert counts[2] == 2
-    assert counts[3] == 4
+    assert counts[3] == 3
