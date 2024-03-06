@@ -16,7 +16,7 @@ def agglom(
     offsets: list[list[int]],
     seeds: Optional[np.ndarray] = None,
     edges: Optional[list[tuple[bool, int, int]]] = None,
-    strides: Optional[list[list[int]]] = None
+    strides: Optional[list[list[int]]] = None,
 ):
     return agglom_rs(affinities, offsets, seeds, edges, strides)
 
