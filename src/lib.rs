@@ -40,7 +40,7 @@ pub fn get_edges<const D: usize>(
     let mut to_filter: HashSet<usize> = HashSet::from_iter(seeds.iter().copied());
 
     let strides = strides.unwrap_or_else(|| {
-        (0..D)
+        (0..offsets.len())
             .map(|_| (0..D).map(|_| 1).collect())
             .collect::<Vec<Vec<usize>>>()
     });
