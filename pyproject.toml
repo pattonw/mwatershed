@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 authors = [{ name = "William Hunter Patton", email = "pattonw@hhmi.org" }]
 name = "mwatershed"
-version = "0.5.1"
+version = "0.5.2"
 description = "A rusty mutex watershed"
 readme = "README.md"
 
@@ -20,8 +20,9 @@ classifiers = [
     'Programming Language :: Python :: 3.8',
 ]
 
-[deps]
-numpy = ">=1.18.0"
+dependencies = [
+    "numpy>=1.18.0"
+]
 
 [project.optional-dependencies]
 dev = [
