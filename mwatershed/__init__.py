@@ -17,8 +17,9 @@ def agglom(
     seeds: Optional[np.ndarray] = None,
     edges: Optional[list[tuple[bool, int, int]]] = None,
     strides: Optional[list[list[int]]] = None,
+    randomized_strides: bool = False,
 ):
-    return agglom_rs(affinities, offsets, seeds, edges, strides)
+    return agglom_rs(affinities, offsets, seeds, edges, strides, randomized_strides)
 
 
 __all__ = ["agglom", "cluster"]
