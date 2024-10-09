@@ -9,7 +9,7 @@ version = "0.5.1"
 description = "A rusty mutex watershed"
 readme = "README.md"
 
-requires-python = ">=3.6"
+requires-python = ">=3.11"
 classifiers = [
     'Development Status :: 2 - Pre-Alpha',
     'Intended Audience :: Developers',
@@ -34,4 +34,6 @@ dev = [
     "pytest",
     "pytest-runner",
     "matplotlib>=3.1.0",
+    "maturin",
+    "pip",
 ]
