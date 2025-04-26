@@ -5,7 +5,7 @@
 use itertools::Itertools;
 use ndarray::{Array, Axis, Slice};
 use ndarray::{Dimension, IxDyn};
-use numpy::{IntoPyArray, PyArrayDyn};
+use numpy::{IntoPyArray, PyArrayDyn, PyArrayMethods};
 
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
@@ -240,16 +240,16 @@ pub fn cluster_edges(mut sorted_edges: Vec<AgglomEdge>) -> Vec<(usize, usize)> {
 }
 
 /// agglomerate nodes given an array of affinities and optional additional edges
-#[pyfunction()]
+#[pyfunction]
 fn agglom_rs<'py>(
-    _py: Python<'py>,
-    affinities: &PyArrayDyn<f64>,
+    py: Python<'py>,
+    affinities: &Bound<'py, PyArrayDyn<f64>>,
     offsets: Vec<Vec<isize>>,
-    seeds: Option<&PyArrayDyn<usize>>,
+    seeds: Option<&Bound<'py, PyArrayDyn<usize>>>,
     edges: Option<Vec<(bool, usize, usize)>>,
     strides: Option<Vec<Vec<usize>>>,
     randomized_strides: Option<bool>,
-) -> PyResult<&'py PyArrayDyn<usize>> {
+) -> Bound<'py, PyArrayDyn<usize>> {
     let affinities = unsafe { affinities.as_array() }.to_owned();
     let seeds = match seeds {
         Some(seeds) => unsafe { seeds.as_array() }.to_owned(),
@@ -312,7 +312,7 @@ fn agglom_rs<'py>(
         ),
         _ => panic!["Only 1-6 dimensional arrays supported"],
     };
-    Ok(result.into_pyarray(_py))
+    result.into_pyarray(py)
 }
 
 /// Cluster edges into a set of connected components using mutex watershed.
@@ -322,7 +322,7 @@ fn agglom_rs<'py>(
 /// :param edges: A list of edges, each represented as a tuple (pos: bool, u: int, v: int).
 /// :return: A list of tuples representing the connected components, where each tuple
 ///         contains two integers (fragment: int, segment: int).
-#[pyfunction()]
+#[pyfunction]
 fn cluster(edges: Vec<(bool, usize, usize)>) -> PyResult<Vec<(usize, usize)>> {
     let edges: Vec<AgglomEdge> = edges
         .into_iter()
@@ -332,10 +332,10 @@ fn cluster(edges: Vec<(bool, usize, usize)>) -> PyResult<Vec<(usize, usize)>> {
     Ok(result)
 }
 
-#[pymodule]
-fn mwatershed(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_wrapped(wrap_pyfunction!(agglom_rs))?;
-    m.add_wrapped(wrap_pyfunction!(cluster))?;
+#[pymodule(name = "mwatershed")]
+fn mwatershed(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(agglom_rs, m)?)?;
+    m.add_function(wrap_pyfunction!(cluster, m)?)?;
 
     Ok(())
 }
