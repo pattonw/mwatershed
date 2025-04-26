@@ -4,14 +4,17 @@ current_version = "0.5.2"
 commit = true
 tag = true
 
-[tool.bumpversion.file.Cargo.toml]
+[[tool.bumpversion.files]]
+filename = "Cargo.toml"
 search = 'version = "{current_version}"'
 replace = 'version = "{new_version}"'
 
-[tool.bumpversion.file.mwatershed.__init__.py]
+[[tool.bumpversion.files]]
+filename = "mwatershed/__init__.py"
 search = '__version__ = """{current_version}"""'
 replace = '__version__ = """{new_version}"""'
 
-[tool.bumpversion.file.pyproject.toml]
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
 search = 'version = "{current_version}"'
 replace = 'version = "{new_version}"'
