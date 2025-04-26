@@ -8,7 +8,7 @@
 
 ## A rusty mutex watershed
 
-See docs [here](pattonw.github.io/mwatershed)
+See docs [here](https://pattonw.github.io/mwatershed)
 
 ### Installation
 
