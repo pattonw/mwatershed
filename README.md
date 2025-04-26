@@ -1,17 +1,18 @@
 # mwatershed
+[![pytest](https://github.com/pattonw/mwatershed/actions/workflows/pytest.yaml/badge.svg)](https://github.com/pattonw/mwatershed/actions/workflows/pytest.yaml)
+[![ruff](https://github.com/pattonw/mwatershed/actions/workflows/ruff.yaml/badge.svg)](https://github.com/pattonw/mwatershed/actions/workflows/ruff.yaml)
+[![cargo](https://github.com/pattonw/mwatershed/actions/workflows/cargo.yaml/badge.svg)](https://github.com/pattonw/mwatershed/actions/workflows/cargo.yaml)
 
-[![](https://img.shields.io/pypi/pyversions/mwatershed.svg)](https://pypi.python.org/pypi/mwatershed)
-[![](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
+[![pypi](https://img.shields.io/pypi/pyversions/mwatershed.svg)](https://pypi.python.org/pypi/mwatershed)
 
 
 ## A rusty mutex watershed
 
-
-* Free software: MIT License
+See docs [here](pattonw.github.io/mwatershed)
 
 ### Installation
 
-`pip install git+https://github.com/pattonw/mwatershed`
+`pip install mwatershed`
 
 ### Features
 
@@ -33,11 +34,3 @@ where:
 * `offsets` is a list of length `n` of offset tuples of `k` integers
 * `seeds` is a `k` dimensional array of fragment ids. Note `seeds.shape` must be equal to `affinities.shape[1:]`. Any entry not equal to 0 is guaranteed to stay that way, any entry equal to zero has no priors.
 * `edges` is a list of `(u, v, aff)` tuples to insert arbitrary extra affinities between fragment ids
-
-### Credits
-
-This package was created with [Cookiecutter](https://github.com/audreyr/cookiecutter) and the [`pattonw/cookiecutter-rust-pypackage`](https://github.com/pattonw/cookiecutter-rust-pypackage) project template.
-
-
-
-

@@ -5,7 +5,7 @@ Credits
 Development Lead
 ----------------
 
-* William Hunter Patton <pattonw@hhmi.org>
+* William Patton <wllmpttn24@gmail.com>
 
 Contributors
 ------------

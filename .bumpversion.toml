@@ -1,0 +1,17 @@
+
+[tool.bumpversion]
+current_version = "0.5.1"
+commit = true
+tag = true
+
+[tool.bumpversion.file.Cargo.toml]
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[tool.bumpversion.file.mwatershed.__init__.py]
+search = '__version__ = """{current_version}"""'
+replace = '__version__ = """{new_version}"""'
+
+[tool.bumpversion.file.pyproject.toml]
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'

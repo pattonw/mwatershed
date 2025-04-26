@@ -1,4 +1,4 @@
-name: Test-py
+name: pytest
 
 on:
   push:

@@ -3,7 +3,7 @@ requires = ["maturin==1.4.0"]
 build-backend = "maturin"
 
 [project]
-authors = [{ name = "William Hunter Patton", email = "pattonw@hhmi.org" }]
+authors = [{ name = "William Patton", email = "wllmpttn24@gmail.com" }]
 name = "mwatershed"
 version = "0.5.2"
 description = "A rusty mutex watershed"
