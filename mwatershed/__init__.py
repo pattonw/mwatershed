@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-"""Top-level package for mwatershed."""
-
 __author__ = """William Patton"""
 __email__ = """wllmpttn24@gmail.com"""
 __version__ = """0.5.2"""
@@ -47,20 +44,22 @@ def agglom(
     """
     return agglom_rs(affinities, offsets, seeds, edges, strides, randomized_strides)
 
+
 def cluster_edges(
-        edges: Sequence[tuple[float, int, int]],
+    edges: Sequence[tuple[float, int, int]],
 ) -> list[tuple[int, int]]:
     """
     Perform affinity-based agglomeration using mutex watershed on a graph-like structure.
-    
+
     :param edges: List of edges to be used for the affinities. Each edge should be a
         tuple of (weight, node1, node2). The weight is the affinity between the two
         nodes. The nodes are the integer ids of the fragments in the graph.
-    
+
     :return: List of tuples (fragment_id: int, segment_id: int) mapping fragments to segments.
     """
     sorted_edges = sorted(edges, reverse=True, key=lambda x: x[0])
     bool_edges = [(weight > 0, node1, node2) for weight, node1, node2 in sorted_edges]
     return cluster(bool_edges)
+
 
 __all__ = ["agglom", "cluster_edges"]
