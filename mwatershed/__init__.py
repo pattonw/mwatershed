@@ -49,7 +49,7 @@ def cluster_edges(
     edges: Sequence[tuple[float, int, int]],
 ) -> list[tuple[int, int]]:
     """
-    Perform affinity-based agglomeration using mutex watershed on a graph-like structure.
+    Perform affinity-based agglomeration using mutex watershed on a set of edges.
 
     :param edges: List of edges to be used for the affinities. Each edge should be a
         tuple of (weight, node1, node2). The weight is the affinity between the two
