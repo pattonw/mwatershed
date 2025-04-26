@@ -315,7 +315,13 @@ fn agglom_rs<'py>(
     Ok(result.into_pyarray(_py))
 }
 
-/// agglomerate nodes given an array of affinities and optional additional edges
+/// Cluster edges into a set of connected components using mutex watershed.
+/// It is assumed that the edges have been sorted in descending order of affinity
+/// magnitude and thresholded at zero to get a list of [pos:bool, u:int, v:int] tuples.
+/// 
+/// :param edges: A list of edges, each represented as a tuple (pos: bool, u: int, v: int).
+/// :return: A list of tuples representing the connected components, where each tuple
+///         contains two integers (fragment: int, segment: int). 
 #[pyfunction()]
 fn cluster(edges: Vec<(bool, usize, usize)>) -> PyResult<Vec<(usize, usize)>> {
     let edges: Vec<AgglomEdge> = edges
