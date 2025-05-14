@@ -62,4 +62,4 @@ def cluster_edges(
     return cluster(bool_edges)
 
 
-__all__ = ["agglom", "cluster_edges"]
+__all__ = ["agglom", "cluster_edges", "cluster"]
