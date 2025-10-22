@@ -57,7 +57,7 @@ def cluster_edges(
 
     :return: List of tuples (fragment_id: int, segment_id: int) mapping fragments to segments.
     """
-    sorted_edges = sorted(edges, reverse=True, key=lambda x: x[0])
+    sorted_edges = sorted(edges, reverse=True, key=lambda x: abs(x[0]))
     bool_edges = [(weight > 0, node1, node2) for weight, node1, node2 in sorted_edges]
     return cluster(bool_edges)
 
