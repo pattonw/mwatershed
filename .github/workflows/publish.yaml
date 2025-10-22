@@ -114,7 +114,7 @@ jobs:
           pattern: "*"
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.10
+          python-version: 3.11
       - name: Publish to PyPI
         env:
           TWINE_USERNAME: __token__
