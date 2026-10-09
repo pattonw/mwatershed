@@ -5,7 +5,7 @@ use ndarray::IxDyn;
 use std::collections::HashSet;
 
 /// A struct to represent edges in the mutex merge graph.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AgglomEdge(pub bool, pub usize, pub usize);
 
 /// A struct to keep track of the mutually exclusive sets of nodes.
@@ -21,7 +21,7 @@ impl Negatives {
     }
 
     /// Check if two nodes are mutually exclusive.
-    fn mutex(&self, a: usize, b: usize) -> bool {
+    pub fn mutex(&self, a: usize, b: usize) -> bool {
         self.mutexes[a].contains(&b)
     }
 
@@ -43,6 +43,13 @@ impl Negatives {
     fn insert(&mut self, a: usize, b: usize) {
         self.mutexes[a].insert(b);
         self.mutexes[b].insert(a);
+    }
+
+    /// Iterate all unique mutex pairs (a, b) where a < b.
+    pub fn iter_pairs(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
+        self.mutexes.iter().enumerate().flat_map(|(a, partners)| {
+            partners.iter().filter_map(move |&b| if b > a { Some((a, b)) } else { None })
+        })
     }
 }
 

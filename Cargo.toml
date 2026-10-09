@@ -4,14 +4,15 @@ version = "0.5.3"
 edition = "2018"
 
 [dependencies]
-pyo3 = { version = "0.27.1", features = ["extension-module"] }
-numpy = "0.27.0"
-ndarray = "0.16.1"
+pyo3 = { version = "0.28.3", features = ["extension-module"] }
+numpy = "0.28.0"
+ndarray = "0.17.2"
 itertools = "0.14.0"
 ordered-float = "5.1"
 ndarray-rand = "0.16"
 futures = "0.3"
 disjoint-sets = "0.4.2"
+rayon = "1.10"
 
 [dev-dependencies]
 criterion = "0.7"

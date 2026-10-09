@@ -3,7 +3,7 @@ __email__ = """wllmpttn24@gmail.com"""
 __version__ = """0.5.3"""
 __version_info__ = tuple(int(n) for n in __version__.split("."))
 
-from .mwatershed import agglom_rs, cluster
+from .mwatershed import agglom_rs, agglom_blockwise_rs, cluster
 import numpy as np
 from typing import Optional
 from collections.abc import Sequence
@@ -45,6 +45,47 @@ def agglom(
     return agglom_rs(affinities, offsets, seeds, edges, strides, randomized_strides)
 
 
+def agglom_blockwise(
+    affinities: np.ndarray,
+    offsets: Sequence[Sequence[int]],
+    block_shape: Sequence[int],
+    seeds: Optional[np.ndarray] = None,
+    edges: Optional[Sequence[tuple[bool, int, int]]] = None,
+    strides: Optional[Sequence[Sequence[int]]] = None,
+    randomized_strides: bool = False,
+    context: Optional[Sequence[int]] = None,
+    lossy: bool = False,
+) -> np.ndarray:
+    """
+    Blockwise parallel affinity-based agglomeration using mutex watershed.
+
+    Splits the volume into spatial blocks, processes each block in parallel,
+    then resolves cross-block edges sequentially.
+
+    :param affinities: Affinities to be segmented (same as :func:`agglom`).
+    :param offsets: List of offsets (same as :func:`agglom`).
+    :param block_shape: Spatial block size per dimension, e.g. ``[64, 64]`` for 2D
+        or ``[32, 32, 32]`` for 3D. Must have the same number of elements as the
+        spatial dimensions of the affinities array.
+    :param seeds: Optional seed array (same as :func:`agglom`).
+    :param edges: Optional extra edges (same as :func:`agglom`).
+    :param strides: Optional strides (same as :func:`agglom`).
+    :param randomized_strides: Whether to randomize strides (same as :func:`agglom`).
+    :param context: Optional additional context per dimension (e.g. ``[5, 5, 5]``).
+        Each block reads this many extra voxels on each side, allowing more edges
+        to be resolved locally in parallel. ``None`` means no extra context.
+    :param lossy: If ``True``, cross-block edges are deferred but interior edges
+        are never frozen — all interior decisions are made locally. This can
+        dramatically reduce the serial workload at the cost of potentially
+        different (but practically very similar) results. If ``False`` (default),
+        freeze propagation ensures identical results to sequential processing.
+    """
+    return agglom_blockwise_rs(
+        affinities, offsets, list(block_shape), seeds, edges, strides, randomized_strides,
+        list(context) if context is not None else None, lossy,
+    )
+
+
 def cluster_edges(
     edges: Sequence[tuple[float, int, int]],
 ) -> list[tuple[int, int]]:
@@ -62,4 +103,4 @@ def cluster_edges(
     return cluster(bool_edges)
 
 
-__all__ = ["agglom", "cluster_edges", "cluster"]
+__all__ = ["agglom", "agglom_blockwise", "cluster_edges", "cluster"]

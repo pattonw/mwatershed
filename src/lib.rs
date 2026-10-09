@@ -18,7 +18,8 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::iter::FromIterator;
 
-mod clustering;
+pub mod blockwise;
+pub mod clustering;
 mod labels;
 
 use clustering::{AgglomEdge, Clustering};
@@ -195,6 +196,95 @@ pub fn agglomerate<const D: usize>(
     seeds
 }
 
+pub fn agglomerate_blockwise<const D: usize>(
+    affinities: &Array<f64, IxDyn>,
+    offsets: Vec<Vec<isize>>,
+    edges: Vec<AgglomEdge>,
+    seeds: Array<usize, IxDyn>,
+    strides: Option<Vec<Vec<usize>>>,
+    randomized_strides: bool,
+    block_shape: [usize; D],
+    context: Option<[usize; D]>,
+    lossy: bool,
+) -> Array<usize, IxDyn> {
+    agglomerate_blockwise_pyramid(affinities, offsets, edges, seeds, strides, randomized_strides, vec![block_shape], context, lossy)
+}
+
+pub fn agglomerate_blockwise_pyramid<const D: usize>(
+    affinities: &Array<f64, IxDyn>,
+    offsets: Vec<Vec<isize>>,
+    mut edges: Vec<AgglomEdge>,
+    mut seeds: Array<usize, IxDyn>,
+    strides: Option<Vec<Vec<usize>>>,
+    randomized_strides: bool,
+    block_shapes: Vec<[usize; D]>,
+    context: Option<[usize; D]>,
+    lossy: bool,
+) -> Array<usize, IxDyn> {
+    // Phase 0: relabel seeds (identical to sequential)
+    let mut lookup = HashMap::new();
+    seeds.iter_mut().enumerate().for_each(|(ind, x)| match x {
+        0 => *x = ind,
+        k => {
+            let id = *lookup.get(k).unwrap_or(&ind);
+            lookup.insert(*k, id);
+            *k = id;
+        }
+    });
+
+    // update user-provided edges from seed ids to node ids
+    edges.iter_mut().for_each(|AgglomEdge(_pos, u, v)| {
+        *u = lookup[u];
+        *v = lookup[v];
+    });
+
+    // seed-pair mutex edges go to deferred queue
+    let unique_seeds: Vec<&usize> = lookup.values().collect();
+    let mut seed_mutex_edges = Vec::new();
+    (0..unique_seeds.len()).for_each(|id1| {
+        ((id1 + 1)..unique_seeds.len()).for_each(|id2| {
+            seed_mutex_edges.push(AgglomEdge(false, *unique_seeds[id1], *unique_seeds[id2]));
+        })
+    });
+    // user-provided edges also go to deferred (they reference arbitrary node IDs)
+    seed_mutex_edges.extend(edges);
+
+    // Phases 1-5: extract edges into blocks, process in parallel, merge
+    let (clustering, mut filtered_background) = blockwise::process_blockwise::<D>(
+        affinities,
+        offsets,
+        seed_mutex_edges,
+        &seeds,
+        strides,
+        randomized_strides,
+        &block_shapes,
+        seeds.len(),
+        context,
+        lossy,
+    );
+    lookup.values().for_each(|node_id| {
+        filtered_background.remove(node_id);
+    });
+
+    // Phase 6: relabel output (identical to sequential)
+    clustering.filter_map(&mut seeds, filtered_background);
+
+    let mut rev_lookup = HashMap::with_capacity(lookup.len());
+    rev_lookup.insert(seeds.len(), 0);
+    lookup.iter().for_each(|(seed, id)| {
+        let rep_id = clustering.positives.clusters.find(*id);
+        if *seed != rep_id {
+            rev_lookup.insert(rep_id, *seed);
+        }
+    });
+
+    seeds.iter_mut().for_each(|x| {
+        *x = *rev_lookup.get(x).unwrap_or(x);
+    });
+
+    seeds
+}
+
 pub fn cluster_edges(mut sorted_edges: Vec<AgglomEdge>) -> Vec<(usize, usize)> {
     // relabel to consecutive ids
     let mut lookup = HashMap::new();
@@ -332,9 +422,72 @@ fn cluster(edges: Vec<(bool, usize, usize)>) -> PyResult<Vec<(usize, usize)>> {
     Ok(result)
 }
 
+/// Blockwise parallel agglomeration using mutex watershed.
+#[pyfunction]
+fn agglom_blockwise_rs<'py>(
+    py: Python<'py>,
+    affinities: &Bound<'py, PyArrayDyn<f64>>,
+    offsets: Vec<Vec<isize>>,
+    block_shape: Vec<usize>,
+    seeds: Option<&Bound<'py, PyArrayDyn<usize>>>,
+    edges: Option<Vec<(bool, usize, usize)>>,
+    strides: Option<Vec<Vec<usize>>>,
+    randomized_strides: Option<bool>,
+    context: Option<Vec<usize>>,
+    lossy: Option<bool>,
+) -> Bound<'py, PyArrayDyn<usize>> {
+    let affinities = unsafe { affinities.as_array() }.to_owned();
+    let seeds = match seeds {
+        Some(seeds) => unsafe { seeds.as_array() }.to_owned(),
+        None => Array::zeros(&affinities.shape()[1..]),
+    };
+    let dim = seeds.dim().ndim();
+    let edges: Vec<AgglomEdge> = edges
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(pos, u, v)| AgglomEdge(pos, u, v))
+        .collect();
+    let lossy = lossy.unwrap_or(false);
+    let result = match dim {
+        1 => {
+            let bs: [usize; 1] = block_shape.try_into().expect("block_shape length must match dimensions");
+            let ctx: Option<[usize; 1]> = context.map(|c| c.try_into().expect("context length must match dimensions"));
+            agglomerate_blockwise::<1>(&affinities, offsets, edges, seeds, strides, randomized_strides.unwrap_or(false), bs, ctx, lossy)
+        }
+        2 => {
+            let bs: [usize; 2] = block_shape.try_into().expect("block_shape length must match dimensions");
+            let ctx: Option<[usize; 2]> = context.map(|c| c.try_into().expect("context length must match dimensions"));
+            agglomerate_blockwise::<2>(&affinities, offsets, edges, seeds, strides, randomized_strides.unwrap_or(false), bs, ctx, lossy)
+        }
+        3 => {
+            let bs: [usize; 3] = block_shape.try_into().expect("block_shape length must match dimensions");
+            let ctx: Option<[usize; 3]> = context.map(|c| c.try_into().expect("context length must match dimensions"));
+            agglomerate_blockwise::<3>(&affinities, offsets, edges, seeds, strides, randomized_strides.unwrap_or(false), bs, ctx, lossy)
+        }
+        4 => {
+            let bs: [usize; 4] = block_shape.try_into().expect("block_shape length must match dimensions");
+            let ctx: Option<[usize; 4]> = context.map(|c| c.try_into().expect("context length must match dimensions"));
+            agglomerate_blockwise::<4>(&affinities, offsets, edges, seeds, strides, randomized_strides.unwrap_or(false), bs, ctx, lossy)
+        }
+        5 => {
+            let bs: [usize; 5] = block_shape.try_into().expect("block_shape length must match dimensions");
+            let ctx: Option<[usize; 5]> = context.map(|c| c.try_into().expect("context length must match dimensions"));
+            agglomerate_blockwise::<5>(&affinities, offsets, edges, seeds, strides, randomized_strides.unwrap_or(false), bs, ctx, lossy)
+        }
+        6 => {
+            let bs: [usize; 6] = block_shape.try_into().expect("block_shape length must match dimensions");
+            let ctx: Option<[usize; 6]> = context.map(|c| c.try_into().expect("context length must match dimensions"));
+            agglomerate_blockwise::<6>(&affinities, offsets, edges, seeds, strides, randomized_strides.unwrap_or(false), bs, ctx, lossy)
+        }
+        _ => panic!["Only 1-6 dimensional arrays supported"],
+    };
+    result.into_pyarray(py)
+}
+
 #[pymodule(name = "mwatershed")]
 fn mwatershed(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(agglom_rs, m)?)?;
+    m.add_function(wrap_pyfunction!(agglom_blockwise_rs, m)?)?;
     m.add_function(wrap_pyfunction!(cluster, m)?)?;
 
     Ok(())
@@ -540,5 +693,231 @@ mod tests {
             AgglomEdge(false, 1, 3),
         ];
         let matching = cluster_edges(edges);
+    }
+
+    /// Check that two label arrays have the same grouping (structurally equivalent).
+    fn assert_structurally_equivalent(
+        a: &Array<usize, IxDyn>,
+        b: &Array<usize, IxDyn>,
+        msg: &str,
+    ) {
+        use std::collections::HashMap;
+        assert_eq!(a.shape(), b.shape(), "{}: shape mismatch", msg);
+        let mut map: HashMap<usize, usize> = HashMap::new();
+        let mut rev: HashMap<usize, usize> = HashMap::new();
+        for (va, vb) in a.iter().zip(b.iter()) {
+            match map.get(va) {
+                Some(&expected) => assert_eq!(
+                    expected, *vb,
+                    "{}: label {} maps to {} but found {}",
+                    msg, va, expected, vb
+                ),
+                None => {
+                    if let Some(&existing_a) = rev.get(vb) {
+                        panic!(
+                            "{}: blockwise label {} already mapped from seq label {}, now also from {}",
+                            msg, vb, existing_a, va
+                        );
+                    }
+                    map.insert(*va, *vb);
+                    rev.insert(*vb, *va);
+                }
+            }
+        }
+        // Same number of unique labels
+        assert_eq!(
+            map.len(),
+            rev.len(),
+            "{}: different number of unique labels",
+            msg
+        );
+    }
+
+    /// Test that blockwise produces structurally equivalent output to sequential.
+    #[test]
+    fn test_blockwise_matches_sequential() {
+        let affinities = array![
+            [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0]],
+            [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [0.0, 0.0, 0.0]]
+        ]
+        .into_dyn()
+            - 0.5;
+        let seeds = array![[1, 2, 0], [4, 0, 0], [0, 0, 0]].into_dyn();
+        let offsets = vec![vec![0, 1], vec![1, 0]];
+
+        let sequential = agglomerate::<2>(
+            &affinities,
+            offsets.clone(),
+            vec![],
+            seeds.clone(),
+            None,
+            false,
+        );
+
+        // Block size = full array (degenerate case, should match exactly)
+        let blockwise_full = agglomerate_blockwise::<2>(
+            &affinities,
+            offsets.clone(),
+            vec![],
+            seeds.clone(),
+            None,
+            false,
+            [3, 3],
+            None,
+            false,
+        );
+        assert_structurally_equivalent(&sequential, &blockwise_full, "full block size");
+
+        // Block size = 2x2
+        let blockwise_2x2 = agglomerate_blockwise::<2>(
+            &affinities,
+            offsets.clone(),
+            vec![],
+            seeds.clone(),
+            None,
+            false,
+            [2, 2],
+            None,
+            false,
+        );
+        assert_structurally_equivalent(&sequential, &blockwise_2x2, "2x2 block size");
+
+        // Block size = 1x1 (maximally deferred)
+        let blockwise_1x1 = agglomerate_blockwise::<2>(
+            &affinities,
+            offsets.clone(),
+            vec![],
+            seeds.clone(),
+            None,
+            false,
+            [1, 1],
+            None,
+            false,
+        );
+        assert_structurally_equivalent(&sequential, &blockwise_1x1, "1x1 block size");
+    }
+
+    /// Test blockwise with no seeds (unsupervised clustering).
+    #[test]
+    fn test_blockwise_no_seeds() {
+        let affinities = array![
+            [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0]],
+            [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [0.0, 0.0, 0.0]]
+        ]
+        .into_dyn()
+            - 0.5;
+        let seeds = array![[0, 0, 0], [0, 0, 0], [0, 0, 0]].into_dyn();
+        let offsets = vec![vec![0, 1], vec![1, 0]];
+
+        let sequential = agglomerate::<2>(
+            &affinities,
+            offsets.clone(),
+            vec![],
+            seeds.clone(),
+            None,
+            false,
+        );
+
+        let blockwise = agglomerate_blockwise::<2>(
+            &affinities,
+            offsets.clone(),
+            vec![],
+            seeds.clone(),
+            None,
+            false,
+            [2, 2],
+            None,
+            false,
+        );
+        assert_structurally_equivalent(&sequential, &blockwise, "unsupervised blockwise");
+    }
+
+    /// Test blockwise with negative offsets.
+    #[test]
+    fn test_blockwise_negative_offsets() {
+        let affinities = array![
+            [[0.0, 0.0, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]],
+            [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]
+        ]
+        .into_dyn()
+            - 0.5;
+        let seeds = array![[1, 2, 0], [4, 0, 0], [0, 0, 0]].into_dyn();
+        let offsets = vec![vec![0, -1], vec![-1, 0]];
+
+        let sequential = agglomerate::<2>(
+            &affinities,
+            offsets.clone(),
+            vec![],
+            seeds.clone(),
+            None,
+            false,
+        );
+
+        let blockwise = agglomerate_blockwise::<2>(
+            &affinities,
+            offsets.clone(),
+            vec![],
+            seeds.clone(),
+            None,
+            false,
+            [2, 2],
+            None,
+            false,
+        );
+        assert_structurally_equivalent(&sequential, &blockwise, "negative offsets blockwise");
+    }
+
+    /// Larger randomized test to verify blockwise matches sequential.
+    #[test]
+    fn test_blockwise_matches_sequential_large() {
+        // 50x50 with deterministic pseudo-random affinities
+        let size = 50usize;
+        let n = size * size;
+
+        // Simple LCG for deterministic values
+        let mut state: u64 = 12345;
+        let mut next_f64 = || -> f64 {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            (state >> 33) as f64 / (1u64 << 31) as f64 * 2.0 - 1.0
+        };
+
+        let mut aff_data = Vec::with_capacity(2 * n);
+        for _ in 0..2 {
+            for _ in 0..n {
+                aff_data.push(next_f64());
+            }
+        }
+
+        let affinities = Array::from_shape_vec(vec![2, size, size], aff_data).unwrap();
+        let seeds = Array::from_elem(vec![size, size], 0usize);
+        let offsets = vec![vec![0, 1], vec![1, 0]];
+
+        let sequential = agglomerate::<2>(
+            &affinities,
+            offsets.clone(),
+            vec![],
+            seeds.clone(),
+            None,
+            false,
+        );
+
+        for block_size in &[5, 10, 17, 25, 50] {
+            let blockwise = agglomerate_blockwise::<2>(
+                &affinities,
+                offsets.clone(),
+                vec![],
+                seeds.clone(),
+                None,
+                false,
+                [*block_size, *block_size],
+                None,
+                false,
+            );
+            assert_structurally_equivalent(
+                &sequential,
+                &blockwise,
+                &format!("{}x{} blocks on {}x{}", block_size, block_size, size, size),
+            );
+        }
     }
 }
