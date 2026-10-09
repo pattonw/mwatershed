@@ -5,7 +5,7 @@ use ndarray::IxDyn;
 use std::collections::HashSet;
 
 /// A struct to represent edges in the mutex merge graph.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AgglomEdge(pub bool, pub usize, pub usize);
 
 /// A struct to keep track of the mutually exclusive sets of nodes.

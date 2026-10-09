@@ -3,24 +3,41 @@ __email__ = """wllmpttn24@gmail.com"""
 __version__ = """0.5.3"""
 __version_info__ = tuple(int(n) for n in __version__.split("."))
 
-from .mwatershed import agglom_rs, cluster
-import numpy as np
-from typing import Optional
 from collections.abc import Sequence
+
+import numpy as np
+
+from .mwatershed import agglom_rs, cluster, cluster_weighted
+
+LINKAGES = ("abs_max", "sum", "mean", "max", "min")
+"""Supported linkage criteria.
+
+* ``"abs_max"`` -- the edge with the largest magnitude decides (mutex watershed).
+* ``"sum"`` -- sum of connecting edge weights (GAEC / HCC-Sum).
+* ``"mean"`` -- mean of connecting edge weights (average linkage, HC-Avg / HCC-Avg).
+* ``"max"`` -- maximum connecting edge weight (single linkage).
+* ``"min"`` -- minimum connecting edge weight (complete linkage).
+
+Aliases ``"absmax"``, ``"mutex"``, ``"average"``, ``"avg"``, ``"single"`` and
+``"complete"`` are also accepted.
+"""
 
 
 def agglom(
     affinities: np.ndarray,
     offsets: Sequence[Sequence[int]],
-    seeds: Optional[np.ndarray] = None,
-    edges: Optional[Sequence[tuple[bool, int, int]]] = None,
-    strides: Optional[Sequence[Sequence[int]]] = None,
+    seeds: np.ndarray | None = None,
+    edges: Sequence[tuple[bool, int, int]] | None = None,
+    strides: Sequence[Sequence[int]] | None = None,
     randomized_strides: bool = False,
+    linkage: str = "abs_max",
+    cannot_link: bool = True,
 ) -> np.ndarray:
     """
-    Perform affinity-based agglomeration using mutex watershed. Given affinities and
-    their associated offsets, this function will return a label array containing a
-    segmentation of the input affinities array.
+    Perform affinity-based agglomeration using the GASP framework (Bailoni et al.
+    2022). With the default ``linkage="abs_max"`` this is the mutex watershed. Given
+    affinities and their associated offsets, this function will return a label array
+    containing a segmentation of the input affinities array.
 
     :param affinities: Affinities to be segmented. Boundaries between objects should be
         negative, and affinities within objects should be positive. Mutex is a greedy
@@ -41,25 +58,48 @@ def agglom(
         biased, and providing a stride lets us avoid excessive splitting.
     :param randomized_strides: If True, the strides will be randomized by just turning
         the stride into a probability of selecting a specific affinity via `1/prod(stride)`.
+    :param linkage: Linkage criterion used to compute the interaction between two
+        clusters from the affinities connecting them. One of :data:`LINKAGES`:
+        ``"abs_max"`` (default, mutex watershed), ``"sum"``, ``"mean"``, ``"max"`` or
+        ``"min"``.
+    :param cannot_link: If True (default), a repulsive interaction between two
+        clusters adds a cannot-link constraint so they are not merged while the
+        algorithm is processing interactions by magnitude; remaining attractive
+        pairs are merged afterwards. Has no effect on the result for ``"abs_max"``.
     """
-    return agglom_rs(affinities, offsets, seeds, edges, strides, randomized_strides)
+    return agglom_rs(
+        affinities,
+        offsets,
+        seeds,
+        edges,
+        strides,
+        randomized_strides,
+        linkage,
+        cannot_link,
+    )
 
 
 def cluster_edges(
     edges: Sequence[tuple[float, int, int]],
+    linkage: str = "abs_max",
+    cannot_link: bool = True,
 ) -> list[tuple[int, int]]:
     """
-    Perform affinity-based agglomeration using mutex watershed on a set of edges.
+    Perform affinity-based agglomeration on a weighted graph. With the default
+    ``linkage="abs_max"`` this is the mutex watershed.
 
     :param edges: List of edges to be used for the affinities. Each edge should be a
         tuple of (weight, node1, node2). The weight is the affinity between the two
         nodes. The nodes are the integer ids of the fragments in the graph.
+    :param linkage: Linkage criterion, see :func:`agglom`.
+    :param cannot_link: Whether to add cannot-link constraints, see :func:`agglom`.
 
-    :return: List of tuples (fragment_id: int, segment_id: int) mapping fragments to segments.
+    :return: List of tuples (fragment_id: int, segment_id: int) mapping fragments to
+        segments. The segment id is the smallest fragment id in the segment.
     """
-    sorted_edges = sorted(edges, reverse=True, key=lambda x: abs(x[0]))
-    bool_edges = [(weight > 0, node1, node2) for weight, node1, node2 in sorted_edges]
-    return cluster(bool_edges)
+    return cluster_weighted(
+        [(float(w), int(u), int(v)) for w, u, v in edges], linkage, cannot_link
+    )
 
 
-__all__ = ["agglom", "cluster_edges", "cluster"]
+__all__ = ["LINKAGES", "agglom", "cluster", "cluster_edges", "cluster_weighted"]
