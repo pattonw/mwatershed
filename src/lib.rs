@@ -5,7 +5,7 @@
 use itertools::Itertools;
 use ndarray::{Array, Axis, Slice};
 use ndarray::{Dimension, IxDyn};
-use numpy::{IntoPyArray, PyArrayDyn, PyArrayMethods};
+use numpy::{IntoPyArray, PyArray1, PyArrayDyn, PyArrayMethods, PyReadonlyArray1};
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -344,6 +344,43 @@ pub fn cluster_edges(mut sorted_edges: Vec<AgglomEdge>) -> Vec<(usize, usize)> {
     fragment_to_segment(lookup, &representatives)
 }
 
+/// Mutex watershed on a graph whose nodes are the dense indices `0..num_nodes`.
+///
+/// `u`, `v` and `weights` hold one edge per position. Unless `sorted` is set,
+/// edges are processed by descending `|weight|`, with ties in input order (a
+/// stable sort). Returns, per node, the smallest node index in its cluster.
+pub fn cluster_dense(
+    num_nodes: usize,
+    u: &[u64],
+    v: &[u64],
+    weights: &[f64],
+    sorted: bool,
+) -> Vec<u64> {
+    let mut order: Vec<usize> = (0..weights.len()).collect();
+    if !sorted {
+        order.sort_by(|&a, &b| weights[b].abs().total_cmp(&weights[a].abs()));
+    }
+    let edges: Vec<AgglomEdge> = order
+        .into_iter()
+        .map(|i| AgglomEdge(weights[i] > 0.0, u[i] as usize, v[i] as usize))
+        .collect();
+    let mut clustering = Clustering::new(num_nodes);
+    clustering.process_edges(edges);
+
+    // nodes are visited in increasing order, so the first one seen per root is
+    // the smallest index in that cluster
+    let roots: Vec<usize> = (0..num_nodes)
+        .map(|i| clustering.positives.clusters.find(i))
+        .collect();
+    let mut smallest = vec![u64::MAX; num_nodes];
+    for (i, &root) in roots.iter().enumerate() {
+        if smallest[root] == u64::MAX {
+            smallest[root] = i as u64;
+        }
+    }
+    roots.into_iter().map(|root| smallest[root]).collect()
+}
+
 /// Cluster weighted `(weight, u, v)` edges with the given linkage criterion.
 /// The edges do not need to be sorted.
 pub fn cluster_weighted_edges(
@@ -475,11 +512,48 @@ fn cluster_weighted(
     Ok(cluster_weighted_edges(edges, options))
 }
 
+/// Mutex watershed on numpy arrays of dense node indices.
+///
+/// :param num_nodes: Number of nodes; node ids are `0..num_nodes`.
+/// :param u: uint64 array of edge sources.
+/// :param v: uint64 array of edge targets.
+/// :param weights: float64 array, positive attracts, negative repels.
+/// :param sorted: If True, edges are already in processing order.
+/// :return: uint64 array, per node the smallest node index in its cluster.
+#[pyfunction]
+#[pyo3(signature = (num_nodes, u, v, weights, sorted=false))]
+fn cluster_arrays<'py>(
+    py: Python<'py>,
+    num_nodes: usize,
+    u: PyReadonlyArray1<'py, u64>,
+    v: PyReadonlyArray1<'py, u64>,
+    weights: PyReadonlyArray1<'py, f64>,
+    sorted: bool,
+) -> PyResult<Bound<'py, PyArray1<u64>>> {
+    let (u, v, weights) = (u.as_slice()?, v.as_slice()?, weights.as_slice()?);
+    if u.len() != v.len() || u.len() != weights.len() {
+        return Err(PyValueError::new_err(
+            "u, v and weights must have equal length",
+        ));
+    }
+    if u.iter().chain(v.iter()).any(|&x| x as usize >= num_nodes) {
+        return Err(PyValueError::new_err(
+            "node index out of range 0..num_nodes",
+        ));
+    }
+    if weights.iter().any(|w| w.is_nan()) {
+        return Err(PyValueError::new_err("weights contain NaN"));
+    }
+    let labels = py.detach(|| cluster_dense(num_nodes, u, v, weights, sorted));
+    Ok(labels.into_pyarray(py))
+}
+
 #[pymodule(name = "mwatershed")]
 fn mwatershed(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(agglom_rs, m)?)?;
     m.add_function(wrap_pyfunction!(cluster, m)?)?;
     m.add_function(wrap_pyfunction!(cluster_weighted, m)?)?;
+    m.add_function(wrap_pyfunction!(cluster_arrays, m)?)?;
 
     Ok(())
 }

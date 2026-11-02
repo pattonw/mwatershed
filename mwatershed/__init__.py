@@ -8,6 +8,7 @@ from collections.abc import Sequence
 import numpy as np
 
 from .mwatershed import agglom_rs, cluster, cluster_weighted
+from .mwatershed import cluster_arrays as _cluster_arrays
 
 LINKAGES = ("abs_max", "sum", "mean", "max", "min")
 """Supported linkage criteria.
@@ -102,4 +103,42 @@ def cluster_edges(
     )
 
 
-__all__ = ["LINKAGES", "agglom", "cluster", "cluster_edges", "cluster_weighted"]
+def cluster_arrays(
+    u: np.ndarray,
+    v: np.ndarray,
+    weights: np.ndarray,
+    num_nodes: int | None = None,
+    sorted: bool = False,
+) -> np.ndarray:
+    """
+    Mutex watershed on a graph given as numpy arrays, without Python objects per
+    edge. Use this instead of :func:`cluster` for large graphs.
+
+    :param u: Edge sources, node indices in ``0..num_nodes``.
+    :param v: Edge targets, node indices in ``0..num_nodes``.
+    :param weights: Edge weights; positive attracts, negative repels. Edges are
+        processed by descending ``|weight|``, ties in input order.
+    :param num_nodes: Number of nodes (default: largest index + 1). Nodes without
+        edges stay singletons.
+    :param sorted: Set if the edges are already in processing order.
+
+    :return: uint64 array of length ``num_nodes``; per node, the smallest node
+        index in its cluster. For arbitrary fragment ids, map them to indices
+        first, e.g. with ``np.unique(ids, return_inverse=True)``.
+    """
+    u = np.ascontiguousarray(u, dtype=np.uint64)
+    v = np.ascontiguousarray(v, dtype=np.uint64)
+    weights = np.ascontiguousarray(weights, dtype=np.float64)
+    if num_nodes is None:
+        num_nodes = int(max(u.max(initial=0), v.max(initial=0))) + 1 if len(u) else 0
+    return _cluster_arrays(num_nodes, u, v, weights, sorted)
+
+
+__all__ = [
+    "LINKAGES",
+    "agglom",
+    "cluster",
+    "cluster_arrays",
+    "cluster_edges",
+    "cluster_weighted",
+]

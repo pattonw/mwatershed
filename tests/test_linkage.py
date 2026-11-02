@@ -187,3 +187,29 @@ def test_no_label_collisions_with_background_or_seeds():
     assert labels[2] == 1
     assert labels[0] == labels[1] != 1
     assert labels[0] != 0
+
+
+def test_cluster_arrays_matches_cluster():
+    rng = np.random.default_rng(0)
+    n, m = 200, 2000
+    u = rng.integers(0, n, m)
+    v = rng.integers(0, n, m)
+    w = rng.normal(size=m)
+    labels = mwatershed.cluster_arrays(u, v, w, num_nodes=n)
+    order = np.argsort(-np.abs(w), kind="stable")
+    lut = dict(
+        mwatershed.cluster([(bool(w[i] > 0), int(u[i]), int(v[i])) for i in order])
+    )
+    expected = np.array([lut.get(i, i) for i in range(n)])
+    np.testing.assert_array_equal(labels, expected)
+    # presorted input gives the same result
+    np.testing.assert_array_equal(
+        mwatershed.cluster_arrays(u[order], v[order], w[order], n, sorted=True), labels
+    )
+
+
+def test_cluster_arrays_rejects_bad_input():
+    with pytest.raises(ValueError):
+        mwatershed.cluster_arrays([0], [5], [1.0], num_nodes=2)
+    with pytest.raises(ValueError):
+        mwatershed.cluster_arrays([0], [1], [np.nan], num_nodes=2)
