@@ -1,6 +1,6 @@
 # mwatershed
-[![pytest](https://github.com/pattonw/mwatershed/actions/workflows/pytest.yaml/badge.svg)](https://github.com/pattonw/mwatershed/actions/workflows/pytest.yaml)
-[![ruff](https://github.com/pattonw/mwatershed/actions/workflows/ruff.yaml/badge.svg)](https://github.com/pattonw/mwatershed/actions/workflows/ruff.yaml)
+[![tests](https://github.com/pattonw/mwatershed/actions/workflows/tests.yaml/badge.svg)](https://github.com/pattonw/mwatershed/actions/workflows/tests.yaml)
+[![lint](https://github.com/pattonw/mwatershed/actions/workflows/lint.yaml/badge.svg)](https://github.com/pattonw/mwatershed/actions/workflows/lint.yaml)
 [![cargo](https://github.com/pattonw/mwatershed/actions/workflows/cargo.yaml/badge.svg)](https://github.com/pattonw/mwatershed/actions/workflows/cargo.yaml)
 
 [![pypi](https://img.shields.io/pypi/pyversions/mwatershed.svg)](https://pypi.python.org/pypi/mwatershed)
