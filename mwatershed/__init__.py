@@ -8,6 +8,7 @@ from collections.abc import Sequence
 import numpy as np
 
 from .mwatershed import agglom_rs, cluster, cluster_weighted
+from .mwatershed import cluster_arrays as _cluster_arrays
 
 LINKAGES = ("abs_max", "sum", "mean", "max", "min")
 """Supported linkage criteria.
@@ -102,4 +103,65 @@ def cluster_edges(
     )
 
 
-__all__ = ["LINKAGES", "agglom", "cluster", "cluster_edges", "cluster_weighted"]
+def _ids(x, name: str) -> np.ndarray:
+    x = np.asarray(x)
+    if np.issubdtype(x.dtype, np.signedinteger) and x.size and x.min() < 0:
+        raise ValueError(f"{name} contains a negative id")
+    return np.ascontiguousarray(x, dtype=np.uint64).reshape(-1)
+
+
+def cluster_arrays(
+    u: np.ndarray,
+    v: np.ndarray,
+    weights: np.ndarray,
+    nodes: np.ndarray | None = None,
+    sorted: bool = False,
+    prefix: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
+    linkage: str = "abs_max",
+    cannot_link: bool = True,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Affinity-based agglomeration on a graph given as numpy arrays, without Python
+    objects per edge. Use this instead of :func:`cluster_edges` for large graphs.
+    With the default ``linkage="abs_max"`` this is the mutex watershed.
+
+    :param u: Edge sources, node ids.
+    :param v: Edge targets, node ids.
+    :param weights: Edge weights; positive attracts, zero or negative repels. Edges
+        are processed by descending ``|weight|``, ties in input order.
+    :param nodes: Sorted, unique node ids. Defaults to the ids that appear in the
+        edges and the prefix. Nodes without edges stay singletons.
+    :param sorted: Set if the weighted edges are already in processing order.
+    :param prefix: ``(u, v, positive)`` arrays of hard decisions (``positive`` is
+        boolean: merge, otherwise split), applied before any weighted edge, in
+        the given order. A prefix split is a constraint no later edge can
+        override; a prefix merge is a union no later edge can undo.
+    :param linkage: Linkage criterion, see :func:`agglom`.
+    :param cannot_link: Whether to add cannot-link constraints, see :func:`agglom`.
+
+    :return: ``(nodes, labels)``, two uint64 arrays of equal length: the node ids
+        (as given, or derived) and, aligned, the smallest node id in each node's
+        cluster.
+    """
+    u, v = _ids(u, "u"), _ids(v, "v")
+    weights = np.ascontiguousarray(weights, dtype=np.float64).reshape(-1)
+    if nodes is not None:
+        nodes = _ids(nodes, "nodes")
+    if prefix is not None:
+        pu, pv, positive = prefix
+        prefix = (
+            _ids(pu, "prefix u"),
+            _ids(pv, "prefix v"),
+            np.ascontiguousarray(positive, dtype=bool).reshape(-1),
+        )
+    return _cluster_arrays(u, v, weights, nodes, sorted, prefix, linkage, cannot_link)
+
+
+__all__ = [
+    "LINKAGES",
+    "agglom",
+    "cluster",
+    "cluster_arrays",
+    "cluster_edges",
+    "cluster_weighted",
+]

@@ -5,7 +5,7 @@
 use itertools::Itertools;
 use ndarray::{Array, Axis, Slice};
 use ndarray::{Dimension, IxDyn};
-use numpy::{IntoPyArray, PyArrayDyn, PyArrayMethods};
+use numpy::{IntoPyArray, PyArray1, PyArrayDyn, PyArrayMethods, PyReadonlyArray1};
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -344,6 +344,92 @@ pub fn cluster_edges(mut sorted_edges: Vec<AgglomEdge>) -> Vec<(usize, usize)> {
     fragment_to_segment(lookup, &representatives)
 }
 
+/// The dense index of `id` in the sorted, unique `nodes`, if it is one.
+fn index_in(nodes: &[u64], id: u64) -> Option<usize> {
+    let i = nodes.partition_point(|&x| x < id);
+    (i < nodes.len() && nodes[i] == id).then_some(i)
+}
+
+/// The sorted, unique node ids among `endpoints`.
+pub fn graph_nodes(endpoints: impl Iterator<Item = u64>) -> Vec<u64> {
+    let mut nodes: Vec<u64> = endpoints.collect();
+    nodes.sort_unstable();
+    nodes.dedup();
+    nodes
+}
+
+/// Cluster a graph with arbitrary node ids.
+///
+/// `nodes` is sorted and unique; every edge endpoint must be one of them. The
+/// `prefix` edges `(u, v, positive)` are hard decisions applied first, in
+/// input order: a merge no later edge undoes, or a cannot-link no later edge
+/// overrides. The weighted edges `(u, v, weights)` follow by descending
+/// `|weight|` with ties in input order (a stable sort), or in input order when
+/// `sorted` is set; a positive weight attracts, anything else repels. `AbsMax`
+/// linkage runs the dedicated mutex watershed, every other linkage the GASP
+/// engine. Returns, aligned with `nodes`, the smallest node id in each node's
+/// cluster.
+pub fn cluster_ids(
+    nodes: &[u64],
+    prefix: (&[u64], &[u64], &[bool]),
+    u: &[u64],
+    v: &[u64],
+    weights: &[f64],
+    sorted: bool,
+    options: GaspOptions,
+) -> Result<Vec<u64>, String> {
+    let index = |id: u64| index_in(nodes, id).ok_or(format!("edge endpoint {id} is not a node"));
+    let (pu, pv, positive) = prefix;
+    let mut hard: Vec<AgglomEdge> = Vec::with_capacity(pu.len());
+    for i in 0..pu.len() {
+        hard.push(AgglomEdge(positive[i], index(pu[i])?, index(pv[i])?));
+    }
+    let order: Vec<usize> = {
+        let mut order: Vec<usize> = (0..u.len()).collect();
+        if !sorted {
+            order.sort_by(|&a, &b| weights[b].abs().total_cmp(&weights[a].abs()));
+        }
+        order
+    };
+
+    let representatives: Vec<usize> = match options.linkage {
+        Linkage::AbsMax => {
+            let mut edges = hard;
+            edges.reserve(u.len());
+            for i in order {
+                edges.push(AgglomEdge(weights[i] > 0.0, index(u[i])?, index(v[i])?));
+            }
+            let mut clustering = Clustering::new(nodes.len());
+            clustering.process_edges(edges);
+            (0..nodes.len())
+                .map(|i| clustering.positives.clusters.find(i))
+                .collect()
+        }
+        _ => {
+            let mut edges: Vec<WeightedEdge> = Vec::with_capacity(u.len());
+            for i in order {
+                edges.push((weights[i], index(u[i])?, index(v[i])?));
+            }
+            gasp::cluster(nodes.len(), &hard, &edges, options)
+        }
+    };
+
+    // nodes are visited in increasing id order, so the first one seen per root
+    // is the smallest id in that cluster
+    let mut smallest = vec![u64::MAX; nodes.len()];
+    let labels = representatives
+        .into_iter()
+        .enumerate()
+        .map(|(i, root)| {
+            if smallest[root] == u64::MAX {
+                smallest[root] = nodes[i];
+            }
+            smallest[root]
+        })
+        .collect();
+    Ok(labels)
+}
+
 /// Cluster weighted `(weight, u, v)` edges with the given linkage criterion.
 /// The edges do not need to be sorted.
 pub fn cluster_weighted_edges(
@@ -475,11 +561,88 @@ fn cluster_weighted(
     Ok(cluster_weighted_edges(edges, options))
 }
 
+type IdArrays<'py> = (
+    PyReadonlyArray1<'py, u64>,
+    PyReadonlyArray1<'py, u64>,
+    PyReadonlyArray1<'py, bool>,
+);
+
+/// Agglomeration on numpy arrays of edges between arbitrary node ids.
+///
+/// :param u: uint64 array of edge sources.
+/// :param v: uint64 array of edge targets.
+/// :param weights: float64 array, positive attracts, anything else repels.
+/// :param nodes: Sorted, unique uint64 array of node ids; default: the ids
+///     that appear in the edges and the prefix.
+/// :param sorted: If True, the weighted edges are already in processing order.
+/// :param prefix: ``(u, v, positive)`` arrays of hard decisions applied
+///     before any weighted edge, in input order.
+/// :param linkage: Linkage criterion; default ``abs_max`` (mutex watershed).
+/// :param cannot_link: Add cannot-link constraints for repulsive pairs
+///     (GASP linkages only).
+/// :return: ``(nodes, labels)``, uint64 arrays; per node the smallest node id
+///     in its cluster.
+#[pyfunction]
+#[pyo3(signature = (u, v, weights, nodes=None, sorted=false, prefix=None, linkage=None, cannot_link=None))]
+#[allow(clippy::too_many_arguments)]
+fn cluster_arrays<'py>(
+    py: Python<'py>,
+    u: PyReadonlyArray1<'py, u64>,
+    v: PyReadonlyArray1<'py, u64>,
+    weights: PyReadonlyArray1<'py, f64>,
+    nodes: Option<PyReadonlyArray1<'py, u64>>,
+    sorted: bool,
+    prefix: Option<IdArrays<'py>>,
+    linkage: Option<&str>,
+    cannot_link: Option<bool>,
+) -> PyResult<(Bound<'py, PyArray1<u64>>, Bound<'py, PyArray1<u64>>)> {
+    let options = parse_options(linkage, cannot_link)?;
+    let (u, v, weights) = (u.as_slice()?, v.as_slice()?, weights.as_slice()?);
+    if u.len() != v.len() || u.len() != weights.len() {
+        return Err(PyValueError::new_err(
+            "u, v and weights must have equal length",
+        ));
+    }
+    let (pu, pv, positive) = match &prefix {
+        Some((pu, pv, positive)) => (pu.as_slice()?, pv.as_slice()?, positive.as_slice()?),
+        None => (&[][..], &[][..], &[][..]),
+    };
+    if pu.len() != pv.len() || pu.len() != positive.len() {
+        return Err(PyValueError::new_err(
+            "prefix u, v and positive must have equal length",
+        ));
+    }
+    let given_nodes = match &nodes {
+        Some(nodes) => Some(nodes.as_slice()?),
+        None => None,
+    };
+    let (nodes, labels) = py
+        .detach(|| -> Result<(Vec<u64>, Vec<u64>), String> {
+            if weights.iter().any(|w| w.is_nan()) {
+                return Err("weights contain NaN".to_string());
+            }
+            let nodes: Vec<u64> = match given_nodes {
+                Some(nodes) => {
+                    if nodes.windows(2).any(|w| w[0] >= w[1]) {
+                        return Err("nodes must be sorted and unique".to_string());
+                    }
+                    nodes.to_vec()
+                }
+                None => graph_nodes(u.iter().chain(v).chain(pu).chain(pv).copied()),
+            };
+            let labels = cluster_ids(&nodes, (pu, pv, positive), u, v, weights, sorted, options)?;
+            Ok((nodes, labels))
+        })
+        .map_err(PyValueError::new_err)?;
+    Ok((nodes.into_pyarray(py), labels.into_pyarray(py)))
+}
+
 #[pymodule(name = "mwatershed")]
 fn mwatershed(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(agglom_rs, m)?)?;
     m.add_function(wrap_pyfunction!(cluster, m)?)?;
     m.add_function(wrap_pyfunction!(cluster_weighted, m)?)?;
+    m.add_function(wrap_pyfunction!(cluster_arrays, m)?)?;
 
     Ok(())
 }

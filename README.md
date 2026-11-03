@@ -35,9 +35,31 @@ where:
 * `seeds` is a `k` dimensional array of fragment ids. Note `seeds.shape` must be equal to `affinities.shape[1:]`. Any entry not equal to 0 is guaranteed to stay that way, any entry equal to zero has no priors.
 * `edges` is a list of `(u, v, aff)` tuples to insert arbitrary extra affinities between fragment ids
 
+### Graphs as arrays
+
+For a graph that already lives in numpy arrays, `cluster_arrays` runs the mutex
+watershed without building a Python object per edge:
+
+```python
+nodes, labels = mwatershed.cluster_arrays(
+    u, v, weights,            # one edge per position; positive attracts, else repels
+    nodes=None,               # sorted unique node ids; default: those in the edges
+    sorted=False,             # set if the edges are already in processing order
+    prefix=None,              # (u, v, positive) hard decisions processed first
+    linkage="abs_max",        # or any GASP linkage below
+    cannot_link=True,
+)
+```
+
+Node ids are arbitrary `uint64`. Edges are processed by descending `|weight|`
+with ties in input order, after the `prefix` edges, which are processed in
+their own order. The result is one label per entry of `nodes`: the smallest
+node id in that node's cluster, so the partition equals `cluster` on the same
+edges in the same order.
+
 ### Linkage criteria (GASP)
 
-`agglom` and `cluster_edges` accept a `linkage` argument that selects how the
+`agglom`, `cluster_edges` and `cluster_arrays` accept a `linkage` argument that selects how the
 interaction between two clusters is computed from the affinities connecting
 them, following the GASP framework of
 [Bailoni et al. (2022)](https://arxiv.org/abs/1906.11713):
