@@ -2,7 +2,7 @@
 
 Usage::
 
-    uv run --extra dev --with matplotlib python examples/plot_linkage_eval.py \
+    uv run --with matplotlib python examples/plot_linkage_eval.py \
         examples/linkage_eval
 
 Writes ``accuracy_ari.png``, ``accuracy_voi.png`` and ``speed.png`` next to

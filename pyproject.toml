@@ -25,12 +25,15 @@ dependencies = [
     "numpy>=1.18.0"
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
+# Installed by `uv sync` (PEP 735); not part of the published package.
+# ruff is pinned with == until uv.lock is committed: it changes its rule
+# set between releases.
 dev = [
     "bump-my-version>=1.8",
     "maturin>=1.16",
     "pytest>=9",
-    "ruff>=0.17",
+    "ruff==0.17.3",
 ]
 docs = [
     "ipykernel>=6.29.5",
