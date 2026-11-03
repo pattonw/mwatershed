@@ -172,8 +172,12 @@ def affinities_from_labels(
         shape
     )
     for i, off in enumerate(offsets):
-        sl_u = tuple(slice(max(0, -o), s - max(0, o)) for o, s in zip(off, shape))
-        sl_v = tuple(slice(max(0, o), s + min(0, o)) for o, s in zip(off, shape))
+        sl_u = tuple(
+            slice(max(0, -o), s - max(0, o)) for o, s in zip(off, shape, strict=False)
+        )
+        sl_v = tuple(
+            slice(max(0, o), s + min(0, o)) for o, s in zip(off, shape, strict=False)
+        )
         same = labels[sl_u] == labels[sl_v]
         signal = np.where(same, 1.0, -1.0)
         # boundary edges inside dropout patches look attractive
@@ -245,7 +249,7 @@ def make_generic_graph(
     u = np.repeat(np.arange(n_nodes), 6)
     v = nn[:, 1:].ravel()
     w = signal(u, v) + rng.normal(0, sigma, size=len(u))
-    edges += list(zip(w.tolist(), u.tolist(), v.tolist()))
+    edges += list(zip(w.tolist(), u.tolist(), v.tolist(), strict=False))
     counts["short"] = len(u)
 
     # long range: 3 random nodes within 4x the typical spacing, noisier
@@ -253,7 +257,7 @@ def make_generic_graph(
     pick = rng.choice(len(pairs), size=min(len(pairs), 3 * n_nodes), replace=False)
     u, v = pairs[pick, 0], pairs[pick, 1]
     w = signal(u, v) + rng.normal(0, 1.5 * sigma, size=len(u))
-    edges += list(zip(w.tolist(), u.tolist(), v.tolist()))
+    edges += list(zip(w.tolist(), u.tolist(), v.tolist(), strict=False))
     counts["long"] = len(u)
 
     # embedding similarity: 3 random nodes within 8x the typical spacing
@@ -268,7 +272,7 @@ def make_generic_graph(
     u, v = pairs[pick, 0], pairs[pick, 1]
     cos = (emb[u] * emb[v]).sum(axis=1)
     w = 2.0 * (cos - 0.5)  # ~ +1 within a cluster, ~ -1 between clusters
-    edges += list(zip(w.tolist(), u.tolist(), v.tolist()))
+    edges += list(zip(w.tolist(), u.tolist(), v.tolist(), strict=False))
     counts["embedding"] = len(u)
 
     return edges, gt, counts

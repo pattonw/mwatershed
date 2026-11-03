@@ -55,3 +55,16 @@ cache-keys = [{file = "pyproject.toml"}, {file = "Cargo.toml"}, {file = "**/*.rs
 [tool.maturin]
 # Generated evaluation outputs live in git for the report but are not shipped.
 exclude = ["examples/linkage_eval/results.json", "examples/linkage_eval/*.png"]
+
+[tool.ruff]
+line-length = 88
+extend-exclude = ["docs/build"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501"]  # the formatter owns line length
+
+[tool.ruff.lint.per-file-ignores]
+"tutorials/**/*.py" = ["E402"]  # jupytext cells import mid-file
+"examples/**/*.py" = ["E402"]
+"__init__.py" = ["F401"]  # re-exports

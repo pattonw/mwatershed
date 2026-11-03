@@ -317,7 +317,9 @@ def test_cluster_arrays_linkages_match_cluster_edges(linkage, cannot_link):
     )
     lut = dict(
         mwatershed.cluster_edges(
-            list(zip(w.tolist(), u.tolist(), v.tolist())), linkage, cannot_link
+            list(zip(w.tolist(), u.tolist(), v.tolist(), strict=False)),
+            linkage,
+            cannot_link,
         )
     )
     assert labels.tolist() == [lut[int(n)] for n in nodes]

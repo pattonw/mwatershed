@@ -147,7 +147,7 @@ def plot_speed(records: list[dict], out: Path):
         1, len(families), figsize=(3.8 * len(families), 3.6), squeeze=False
     )
     fig.patch.set_facecolor(SURFACE)
-    for ax, family in zip(axes[0], families):
+    for ax, family in zip(axes[0], families, strict=False):
         style_axis(ax)
         ax.grid(True, axis="x", color=GRID, linewidth=1)
         ax.grid(False, axis="y")
@@ -161,7 +161,7 @@ def plot_speed(records: list[dict], out: Path):
             ]
             times.append(float(np.median(ts)) * 1e3 if ts else np.nan)
         y = np.arange(len(variants))[::-1]
-        for yi, variant, t in zip(y, variants, times):
+        for yi, variant, t in zip(y, variants, times, strict=False):
             linkage = variant.replace("_nocl", "")
             ax.barh(
                 yi,
