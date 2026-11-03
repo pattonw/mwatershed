@@ -47,3 +47,6 @@ docs = [
 cache-keys = [{file = "pyproject.toml"}, {file = "rust/Cargo.toml"}, {file = "**/*.rs"}]
 # Uncomment to build rust code in development mode
 # config-settings = { build-args = '--profile=dev' }
+[tool.maturin]
+# Generated evaluation outputs live in git for the report but are not shipped.
+exclude = ["examples/linkage_eval/results.json", "examples/linkage_eval/*.png"]
