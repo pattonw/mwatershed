@@ -358,14 +358,17 @@ pub fn graph_nodes(endpoints: impl Iterator<Item = u64>) -> Vec<u64> {
     nodes
 }
 
-/// Mutex watershed on a graph with arbitrary node ids.
+/// Cluster a graph with arbitrary node ids.
 ///
 /// `nodes` is sorted and unique; every edge endpoint must be one of them. The
-/// `prefix` edges `(u, v, positive)` are hard decisions processed first, in
-/// input order. The weighted edges `(u, v, weights)` follow by descending
+/// `prefix` edges `(u, v, positive)` are hard decisions applied first, in
+/// input order: a merge no later edge undoes, or a cannot-link no later edge
+/// overrides. The weighted edges `(u, v, weights)` follow by descending
 /// `|weight|` with ties in input order (a stable sort), or in input order when
-/// `sorted` is set; a positive weight attracts, anything else repels. Returns,
-/// aligned with `nodes`, the smallest node id in each node's cluster.
+/// `sorted` is set; a positive weight attracts, anything else repels. `AbsMax`
+/// linkage runs the dedicated mutex watershed, every other linkage the GASP
+/// engine. Returns, aligned with `nodes`, the smallest node id in each node's
+/// cluster.
 pub fn cluster_ids(
     nodes: &[u64],
     prefix: (&[u64], &[u64], &[bool]),
@@ -373,34 +376,51 @@ pub fn cluster_ids(
     v: &[u64],
     weights: &[f64],
     sorted: bool,
+    options: GaspOptions,
 ) -> Result<Vec<u64>, String> {
     let index = |id: u64| index_in(nodes, id).ok_or(format!("edge endpoint {id} is not a node"));
     let (pu, pv, positive) = prefix;
-    let mut edges: Vec<AgglomEdge> = Vec::with_capacity(pu.len() + u.len());
+    let mut hard: Vec<AgglomEdge> = Vec::with_capacity(pu.len());
     for i in 0..pu.len() {
-        edges.push(AgglomEdge(positive[i], index(pu[i])?, index(pv[i])?));
+        hard.push(AgglomEdge(positive[i], index(pu[i])?, index(pv[i])?));
     }
-    if sorted {
-        for i in 0..u.len() {
-            edges.push(AgglomEdge(weights[i] > 0.0, index(u[i])?, index(v[i])?));
-        }
-    } else {
+    let order: Vec<usize> = {
         let mut order: Vec<usize> = (0..u.len()).collect();
-        order.sort_by(|&a, &b| weights[b].abs().total_cmp(&weights[a].abs()));
-        for i in order {
-            edges.push(AgglomEdge(weights[i] > 0.0, index(u[i])?, index(v[i])?));
+        if !sorted {
+            order.sort_by(|&a, &b| weights[b].abs().total_cmp(&weights[a].abs()));
         }
-    }
+        order
+    };
 
-    let mut clustering = Clustering::new(nodes.len());
-    clustering.process_edges(edges);
+    let representatives: Vec<usize> = match options.linkage {
+        Linkage::AbsMax => {
+            let mut edges = hard;
+            edges.reserve(u.len());
+            for i in order {
+                edges.push(AgglomEdge(weights[i] > 0.0, index(u[i])?, index(v[i])?));
+            }
+            let mut clustering = Clustering::new(nodes.len());
+            clustering.process_edges(edges);
+            (0..nodes.len())
+                .map(|i| clustering.positives.clusters.find(i))
+                .collect()
+        }
+        _ => {
+            let mut edges: Vec<WeightedEdge> = Vec::with_capacity(u.len());
+            for i in order {
+                edges.push((weights[i], index(u[i])?, index(v[i])?));
+            }
+            gasp::cluster(nodes.len(), &hard, &edges, options)
+        }
+    };
 
     // nodes are visited in increasing id order, so the first one seen per root
     // is the smallest id in that cluster
     let mut smallest = vec![u64::MAX; nodes.len()];
-    let labels = (0..nodes.len())
-        .map(|i| {
-            let root = clustering.positives.clusters.find(i);
+    let labels = representatives
+        .into_iter()
+        .enumerate()
+        .map(|(i, root)| {
             if smallest[root] == u64::MAX {
                 smallest[root] = nodes[i];
             }
@@ -547,7 +567,7 @@ type IdArrays<'py> = (
     PyReadonlyArray1<'py, bool>,
 );
 
-/// Mutex watershed on numpy arrays of edges between arbitrary node ids.
+/// Agglomeration on numpy arrays of edges between arbitrary node ids.
 ///
 /// :param u: uint64 array of edge sources.
 /// :param v: uint64 array of edge targets.
@@ -555,12 +575,16 @@ type IdArrays<'py> = (
 /// :param nodes: Sorted, unique uint64 array of node ids; default: the ids
 ///     that appear in the edges and the prefix.
 /// :param sorted: If True, the weighted edges are already in processing order.
-/// :param prefix: ``(u, v, positive)`` arrays of hard decisions processed
+/// :param prefix: ``(u, v, positive)`` arrays of hard decisions applied
 ///     before any weighted edge, in input order.
+/// :param linkage: Linkage criterion; default ``abs_max`` (mutex watershed).
+/// :param cannot_link: Add cannot-link constraints for repulsive pairs
+///     (GASP linkages only).
 /// :return: ``(nodes, labels)``, uint64 arrays; per node the smallest node id
 ///     in its cluster.
 #[pyfunction]
-#[pyo3(signature = (u, v, weights, nodes=None, sorted=false, prefix=None))]
+#[pyo3(signature = (u, v, weights, nodes=None, sorted=false, prefix=None, linkage=None, cannot_link=None))]
+#[allow(clippy::too_many_arguments)]
 fn cluster_arrays<'py>(
     py: Python<'py>,
     u: PyReadonlyArray1<'py, u64>,
@@ -569,7 +593,10 @@ fn cluster_arrays<'py>(
     nodes: Option<PyReadonlyArray1<'py, u64>>,
     sorted: bool,
     prefix: Option<IdArrays<'py>>,
+    linkage: Option<&str>,
+    cannot_link: Option<bool>,
 ) -> PyResult<(Bound<'py, PyArray1<u64>>, Bound<'py, PyArray1<u64>>)> {
+    let options = parse_options(linkage, cannot_link)?;
     let (u, v, weights) = (u.as_slice()?, v.as_slice()?, weights.as_slice()?);
     if u.len() != v.len() || u.len() != weights.len() {
         return Err(PyValueError::new_err(
@@ -603,7 +630,7 @@ fn cluster_arrays<'py>(
                 }
                 None => graph_nodes(u.iter().chain(v).chain(pu).chain(pv).copied()),
             };
-            let labels = cluster_ids(&nodes, (pu, pv, positive), u, v, weights, sorted)?;
+            let labels = cluster_ids(&nodes, (pu, pv, positive), u, v, weights, sorted, options)?;
             Ok((nodes, labels))
         })
         .map_err(PyValueError::new_err)?;

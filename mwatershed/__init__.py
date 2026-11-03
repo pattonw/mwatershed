@@ -117,10 +117,13 @@ def cluster_arrays(
     nodes: np.ndarray | None = None,
     sorted: bool = False,
     prefix: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
+    linkage: str = "abs_max",
+    cannot_link: bool = True,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Mutex watershed on a graph given as numpy arrays, without Python objects per
-    edge. Use this instead of :func:`cluster` for large graphs.
+    Affinity-based agglomeration on a graph given as numpy arrays, without Python
+    objects per edge. Use this instead of :func:`cluster_edges` for large graphs.
+    With the default ``linkage="abs_max"`` this is the mutex watershed.
 
     :param u: Edge sources, node ids.
     :param v: Edge targets, node ids.
@@ -130,9 +133,11 @@ def cluster_arrays(
         edges and the prefix. Nodes without edges stay singletons.
     :param sorted: Set if the weighted edges are already in processing order.
     :param prefix: ``(u, v, positive)`` arrays of hard decisions (``positive`` is
-        boolean: merge, otherwise split), processed before any weighted edge, in
-        the given order. A prefix split is a mutex no later edge can override; a
-        prefix merge is a union no later edge can undo.
+        boolean: merge, otherwise split), applied before any weighted edge, in
+        the given order. A prefix split is a constraint no later edge can
+        override; a prefix merge is a union no later edge can undo.
+    :param linkage: Linkage criterion, see :func:`agglom`.
+    :param cannot_link: Whether to add cannot-link constraints, see :func:`agglom`.
 
     :return: ``(nodes, labels)``, two uint64 arrays of equal length: the node ids
         (as given, or derived) and, aligned, the smallest node id in each node's
@@ -149,7 +154,7 @@ def cluster_arrays(
             _ids(pv, "prefix v"),
             np.ascontiguousarray(positive, dtype=bool).reshape(-1),
         )
-    return _cluster_arrays(u, v, weights, nodes, sorted, prefix)
+    return _cluster_arrays(u, v, weights, nodes, sorted, prefix, linkage, cannot_link)
 
 
 __all__ = [

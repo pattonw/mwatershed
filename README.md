@@ -46,6 +46,8 @@ nodes, labels = mwatershed.cluster_arrays(
     nodes=None,               # sorted unique node ids; default: those in the edges
     sorted=False,             # set if the edges are already in processing order
     prefix=None,              # (u, v, positive) hard decisions processed first
+    linkage="abs_max",        # or any GASP linkage below
+    cannot_link=True,
 )
 ```
 
@@ -57,7 +59,7 @@ edges in the same order.
 
 ### Linkage criteria (GASP)
 
-`agglom` and `cluster_edges` accept a `linkage` argument that selects how the
+`agglom`, `cluster_edges` and `cluster_arrays` accept a `linkage` argument that selects how the
 interaction between two clusters is computed from the affinities connecting
 them, following the GASP framework of
 [Bailoni et al. (2022)](https://arxiv.org/abs/1906.11713):

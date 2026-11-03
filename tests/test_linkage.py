@@ -302,3 +302,50 @@ def test_cluster_arrays_empty():
     assert len(nodes) == 0 and len(labels) == 0
     nodes, labels = mwatershed.cluster_arrays([], [], [], nodes=[3, 5])
     assert nodes.tolist() == [3, 5] and labels.tolist() == [3, 5]
+
+
+@pytest.mark.parametrize("linkage", ["sum", "mean", "max", "min", "abs_max"])
+@pytest.mark.parametrize("cannot_link", [True, False])
+def test_cluster_arrays_linkages_match_cluster_edges(linkage, cannot_link):
+    rng = np.random.default_rng(2)
+    ids = rng.choice(np.arange(10**9, 10**9 + 10**5), size=60, replace=False)
+    u = rng.choice(ids, 400)
+    v = rng.choice(ids, 400)
+    w = rng.choice([-2.0, -1.0, -0.5, 0.5, 1.0, 2.0], 400)  # plenty of ties
+    nodes, labels = mwatershed.cluster_arrays(
+        u, v, w, linkage=linkage, cannot_link=cannot_link
+    )
+    lut = dict(
+        mwatershed.cluster_edges(
+            list(zip(w.tolist(), u.tolist(), v.tolist())), linkage, cannot_link
+        )
+    )
+    assert labels.tolist() == [lut[int(n)] for n in nodes]
+
+
+def test_cluster_arrays_prefix_with_linkage():
+    # 10-11 and 11-12 attract, 10-12 repels weakly: sum linkage merges all three
+    u, v, w = np.array([10, 11, 10]), np.array([11, 12, 12]), np.array([1.0, 1.0, -0.5])
+    _, plain = mwatershed.cluster_arrays(u, v, w, linkage="sum")
+    assert plain.tolist() == [10, 10, 10]
+    # a prefix split between 10 and 12 is a hard cannot-link: 12 stays apart
+    _, split = mwatershed.cluster_arrays(
+        u, v, w, prefix=([10], [12], [False]), linkage="sum"
+    )
+    assert split.tolist() == [10, 10, 12]
+    # a prefix merge joins 12 and 13 although nothing else connects them
+    nodes, merged = mwatershed.cluster_arrays(
+        u, v, w, prefix=([12], [13], [True]), linkage="sum"
+    )
+    assert nodes.tolist() == [10, 11, 12, 13]
+    assert merged.tolist() == [10, 10, 10, 10]
+    # a prefix split beats a later prefix merge of the same pair
+    _, both = mwatershed.cluster_arrays(
+        u, v, w, prefix=([10, 10], [12, 12], [False, True]), linkage="mean"
+    )
+    assert both.tolist() == [10, 10, 12]
+
+
+def test_cluster_arrays_rejects_unknown_linkage():
+    with pytest.raises(ValueError):
+        mwatershed.cluster_arrays([0], [1], [1.0], linkage="median")
