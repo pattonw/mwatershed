@@ -4,5 +4,5 @@ API Reference
 =============
 
 .. automodule:: mwatershed
-    :members: agglom, cluster_edges
+    :members: agglom, cluster_edges, cluster_arrays
 

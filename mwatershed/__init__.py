@@ -103,35 +103,53 @@ def cluster_edges(
     )
 
 
+def _ids(x, name: str) -> np.ndarray:
+    x = np.asarray(x)
+    if np.issubdtype(x.dtype, np.signedinteger) and x.size and x.min() < 0:
+        raise ValueError(f"{name} contains a negative id")
+    return np.ascontiguousarray(x, dtype=np.uint64).reshape(-1)
+
+
 def cluster_arrays(
     u: np.ndarray,
     v: np.ndarray,
     weights: np.ndarray,
-    num_nodes: int | None = None,
+    nodes: np.ndarray | None = None,
     sorted: bool = False,
-) -> np.ndarray:
+    prefix: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Mutex watershed on a graph given as numpy arrays, without Python objects per
     edge. Use this instead of :func:`cluster` for large graphs.
 
-    :param u: Edge sources, node indices in ``0..num_nodes``.
-    :param v: Edge targets, node indices in ``0..num_nodes``.
-    :param weights: Edge weights; positive attracts, negative repels. Edges are
-        processed by descending ``|weight|``, ties in input order.
-    :param num_nodes: Number of nodes (default: largest index + 1). Nodes without
-        edges stay singletons.
-    :param sorted: Set if the edges are already in processing order.
+    :param u: Edge sources, node ids.
+    :param v: Edge targets, node ids.
+    :param weights: Edge weights; positive attracts, zero or negative repels. Edges
+        are processed by descending ``|weight|``, ties in input order.
+    :param nodes: Sorted, unique node ids. Defaults to the ids that appear in the
+        edges and the prefix. Nodes without edges stay singletons.
+    :param sorted: Set if the weighted edges are already in processing order.
+    :param prefix: ``(u, v, positive)`` arrays of hard decisions (``positive`` is
+        boolean: merge, otherwise split), processed before any weighted edge, in
+        the given order. A prefix split is a mutex no later edge can override; a
+        prefix merge is a union no later edge can undo.
 
-    :return: uint64 array of length ``num_nodes``; per node, the smallest node
-        index in its cluster. For arbitrary fragment ids, map them to indices
-        first, e.g. with ``np.unique(ids, return_inverse=True)``.
+    :return: ``(nodes, labels)``, two uint64 arrays of equal length: the node ids
+        (as given, or derived) and, aligned, the smallest node id in each node's
+        cluster.
     """
-    u = np.ascontiguousarray(u, dtype=np.uint64)
-    v = np.ascontiguousarray(v, dtype=np.uint64)
-    weights = np.ascontiguousarray(weights, dtype=np.float64)
-    if num_nodes is None:
-        num_nodes = int(max(u.max(initial=0), v.max(initial=0))) + 1 if len(u) else 0
-    return _cluster_arrays(num_nodes, u, v, weights, sorted)
+    u, v = _ids(u, "u"), _ids(v, "v")
+    weights = np.ascontiguousarray(weights, dtype=np.float64).reshape(-1)
+    if nodes is not None:
+        nodes = _ids(nodes, "nodes")
+    if prefix is not None:
+        pu, pv, positive = prefix
+        prefix = (
+            _ids(pu, "prefix u"),
+            _ids(pv, "prefix v"),
+            np.ascontiguousarray(positive, dtype=bool).reshape(-1),
+        )
+    return _cluster_arrays(u, v, weights, nodes, sorted, prefix)
 
 
 __all__ = [
