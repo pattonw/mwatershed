@@ -1,6 +1,6 @@
 __author__ = """William Patton"""
 __email__ = """wllmpttn24@gmail.com"""
-__version__ = """0.6.0"""
+__version__ = """0.6.1"""
 __version_info__ = tuple(int(n) for n in __version__.split("."))
 
 from collections.abc import Sequence
