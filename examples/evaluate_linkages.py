@@ -17,7 +17,7 @@ are flipped to attractive, which creates correlated merge errors.
 
 Usage::
 
-    uv run --extra dev --with scipy python examples/evaluate_linkages.py \
+    uv run --with scipy python examples/evaluate_linkages.py \
         --out examples/linkage_eval
 
 Writes ``results.json`` (one record per run) and ``REPORT.md``.
