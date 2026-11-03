@@ -66,4 +66,4 @@ html_css_files = [
 ]
 
 typehints_fully_qualified = False  # Show types like `List` instead of `typing.List`
-typehints_format = 'short'         # Options: 'short', 'fully-qualified', 'none'
+typehints_format = "short"  # Options: 'short', 'fully-qualified', 'none'

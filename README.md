@@ -42,11 +42,13 @@ watershed without building a Python object per edge:
 
 ```python
 nodes, labels = mwatershed.cluster_arrays(
-    u, v, weights,            # one edge per position; positive attracts, else repels
-    nodes=None,               # sorted unique node ids; default: those in the edges
-    sorted=False,             # set if the edges are already in processing order
-    prefix=None,              # (u, v, positive) hard decisions processed first
-    linkage="abs_max",        # or any GASP linkage below
+    u,
+    v,
+    weights,  # one edge per position; positive attracts, else repels
+    nodes=None,  # sorted unique node ids; default: those in the edges
+    sorted=False,  # set if the edges are already in processing order
+    prefix=None,  # (u, v, positive) hard decisions processed first
+    linkage="abs_max",  # or any GASP linkage below
     cannot_link=True,
 )
 ```
