@@ -1,9 +1,10 @@
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use ndarray::{Array, IxDyn};
 use ndarray_rand::rand::SeedableRng;
 use ndarray_rand::rand_distr::Normal;
 use ndarray_rand::RandomExt;
 use rand_isaac::isaac64::Isaac64Rng;
+use std::hint::black_box;
 
 use mwatershed::{agglomerate, agglomerate_with, GaspOptions, Linkage};
 
