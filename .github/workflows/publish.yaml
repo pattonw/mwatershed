@@ -15,9 +15,9 @@ on:
 permissions:
   contents: read
 
-# 32-bit Linux targets (x86, armv7) are not built: the numpy crate rejects
-# free-threaded CPython 3.14t on 32-bit platforms, and numpy itself ships no
-# wheels for them, so users there build from the sdist anyway.
+# No 32-bit targets are built: the numpy crate rejects free-threaded CPython
+# 3.14t on 32-bit platforms, and numpy itself ships no 32-bit wheels, so users
+# there build from the sdist anyway.
 jobs:
   linux:
     runs-on: ${{ matrix.platform.runner }}
@@ -84,8 +84,6 @@ jobs:
         platform:
           - runner: windows-latest
             target: x64
-          - runner: windows-latest
-            target: x86
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
