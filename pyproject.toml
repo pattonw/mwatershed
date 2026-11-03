@@ -33,6 +33,7 @@ dev = [
     "bump-my-version>=1.8",
     "maturin>=1.16",
     "pytest>=9",
+    "pytest-cov>=6",
     "ruff==0.17.3",
 ]
 docs = [
