@@ -25,17 +25,21 @@ dependencies = [
     "numpy>=1.18.0"
 ]
 
+[project.urls]
+Documentation = "https://pattonw.github.io/mwatershed"
+Source = "https://github.com/pattonw/mwatershed"
+Issues = "https://github.com/pattonw/mwatershed/issues"
+
 [dependency-groups]
 # Installed by `uv sync` (PEP 735); not part of the published package.
-# ruff is pinned with == until uv.lock is committed: it changes its rule
-# set between releases.
+# ruff and ty versions come from uv.lock; `uv lock --upgrade` moves them.
 dev = [
     "bump-my-version>=1.8",
     "maturin>=1.16",
     "pytest>=9",
     "pytest-cov>=6",
-    "ruff==0.17.3",
-    "ty==0.0.96",
+    "ruff>=0.17.3",
+    "ty>=0.0.96",
 ]
 docs = [
     "ipykernel>=6.29.5",
@@ -73,3 +77,14 @@ ignore = ["E501"]  # the formatter owns line length
 "tutorials/**/*.py" = ["E402"]  # jupytext cells import mid-file
 "examples/**/*.py" = ["E402"]
 "__init__.py" = ["F401"]  # re-exports
+
+[tool.coverage.run]
+branch = true
+source = ["mwatershed"]
+
+[tool.coverage.report]
+# Floor measured from the first branch-enabled run; raise it when measured
+# coverage is two or more points ahead, never lower it without saying why.
+fail_under = 100
+show_missing = true
+skip_covered = true
