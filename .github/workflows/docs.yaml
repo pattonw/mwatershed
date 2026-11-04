@@ -16,7 +16,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: astral-sh/setup-uv@v6
       - uses: pandoc/actions/setup@v1
-      - run: uv sync --group docs
+      - run: uv sync --locked --group docs
       - run: uv run --group docs sphinx-build docs/source docs/build/html -b html
       - uses: actions/upload-pages-artifact@v3
         with:
