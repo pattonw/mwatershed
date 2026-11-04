@@ -90,7 +90,7 @@ def reference_gasp(n_nodes, edges, linkage, cannot_link):
 
 def same_partition(a, b):
     fwd, rev = {}, {}
-    for x, y in zip(a, b):
+    for x, y in zip(a, b, strict=False):
         if fwd.setdefault(x, y) != y or rev.setdefault(y, x) != x:
             return False
     return True
@@ -108,7 +108,7 @@ def test_engine_matches_reference(linkage, cannot_link):
         keep = u != v
         u, v = u[keep], v[keep]
         w = rng.normal(size=len(u))
-        edges = list(zip(w.tolist(), u.tolist(), v.tolist()))
+        edges = list(zip(w.tolist(), u.tolist(), v.tolist(), strict=False))
         # multi-edges between the same pair are part of the test
         expected = reference_gasp(n, edges, linkage, cannot_link)
         mapping = dict(
