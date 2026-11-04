@@ -6,9 +6,16 @@ __version_info__ = tuple(int(n) for n in __version__.split("."))
 from collections.abc import Sequence
 
 import numpy as np
+import numpy.typing as npt
 
-from .mwatershed import agglom_rs, cluster, cluster_weighted
-from .mwatershed import cluster_arrays as _cluster_arrays
+from .mwatershed import (  # ty: ignore[unresolved-import]  # compiled extension, no stub yet
+    agglom_rs,
+    cluster,
+    cluster_weighted,
+)
+from .mwatershed import (  # ty: ignore[unresolved-import]  # compiled extension, no stub yet
+    cluster_arrays as _cluster_arrays,
+)
 
 LINKAGES = ("abs_max", "sum", "mean", "max", "min")
 """Supported linkage criteria.
@@ -111,12 +118,12 @@ def _ids(x, name: str) -> np.ndarray:
 
 
 def cluster_arrays(
-    u: np.ndarray,
-    v: np.ndarray,
-    weights: np.ndarray,
-    nodes: np.ndarray | None = None,
+    u: npt.ArrayLike,
+    v: npt.ArrayLike,
+    weights: npt.ArrayLike,
+    nodes: npt.ArrayLike | None = None,
     sorted: bool = False,
-    prefix: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
+    prefix: tuple[npt.ArrayLike, npt.ArrayLike, npt.ArrayLike] | None = None,
     linkage: str = "abs_max",
     cannot_link: bool = True,
 ) -> tuple[np.ndarray, np.ndarray]:

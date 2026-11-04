@@ -13,3 +13,12 @@ jobs:
       # dev group only: no maturin build is needed to lint
       - run: uv run --only-group dev ruff check .
       - run: uv run --only-group dev ruff format --check .
+  ty:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync   # builds the extension so ty sees the installed package
+      - run: uv run ty check
