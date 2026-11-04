@@ -25,6 +25,11 @@ dependencies = [
     "numpy>=1.18.0"
 ]
 
+[project.urls]
+Documentation = "https://pattonw.github.io/mwatershed"
+Source = "https://github.com/pattonw/mwatershed"
+Issues = "https://github.com/pattonw/mwatershed/issues"
+
 [dependency-groups]
 # Installed by `uv sync` (PEP 735); not part of the published package.
 # ruff is pinned with == until uv.lock is committed: it changes its rule

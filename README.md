@@ -2,17 +2,20 @@
 [![tests](https://github.com/pattonw/mwatershed/actions/workflows/tests.yaml/badge.svg)](https://github.com/pattonw/mwatershed/actions/workflows/tests.yaml)
 [![lint](https://github.com/pattonw/mwatershed/actions/workflows/lint.yaml/badge.svg)](https://github.com/pattonw/mwatershed/actions/workflows/lint.yaml)
 [![cargo](https://github.com/pattonw/mwatershed/actions/workflows/cargo.yaml/badge.svg)](https://github.com/pattonw/mwatershed/actions/workflows/cargo.yaml)
-
-[![pypi](https://img.shields.io/pypi/pyversions/mwatershed.svg)](https://pypi.python.org/pypi/mwatershed)
-
+[![docs](https://github.com/pattonw/mwatershed/actions/workflows/docs.yaml/badge.svg)](https://pattonw.github.io/mwatershed)
+[![publish](https://github.com/pattonw/mwatershed/actions/workflows/publish.yaml/badge.svg)](https://pypi.org/project/mwatershed/)
 
 ## A rusty mutex watershed
 
-See docs [here](https://pattonw.github.io/mwatershed)
+**Documentation:** https://pattonw.github.io/mwatershed
 
-### Installation
+### Install
 
-`pip install mwatershed`
+```bash
+pip install mwatershed    # or: uv add mwatershed
+```
+
+Wheels are published for Linux, macOS and Windows; building from source needs a Rust toolchain.
 
 ### Features
 
@@ -91,3 +94,20 @@ times slower than the dedicated mutex watershed path; see
 [`LINKAGE_REPORT.md`](LINKAGE_REPORT.md) for timings
 (`cargo run --release --example benchmark_linkages`) or run
 `cargo bench` for the Criterion comparison.
+
+## Contributing
+
+The commands below are the ones CI runs, so a green local run means a green PR.
+
+```bash
+git clone https://github.com/pattonw/mwatershed
+cd mwatershed
+uv sync                                             # builds the extension (needs Rust) + dev tools
+uv run pytest tests                                 # Python tests with coverage
+cargo test                                          # Rust tests
+uv run --only-group dev ruff check . && uv run --only-group dev ruff format --check .
+uv run ty check                                     # types
+uv run --group docs sphinx-build docs/source docs/build/html -b html
+```
+
+`uv.lock` pins the development environment; the `lock-upgrade` workflow refreshes it monthly and opens a pull request.
