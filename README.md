@@ -107,7 +107,7 @@ uv run pytest                                       # Python tests with coverage
 uv run pytest --no-cov tests/<file>.py              # one file, without the coverage floor
 cargo test                                          # Rust tests
 uv run --only-group dev ruff check . && uv run --only-group dev ruff format --check .
-uv run ty check                                     # types
+uv run ty check --error-on-warning                  # types
 uv run --group docs sphinx-build docs/source docs/build/html -b html
 ```
 

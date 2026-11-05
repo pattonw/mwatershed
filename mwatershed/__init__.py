@@ -8,12 +8,12 @@ from collections.abc import Sequence
 import numpy as np
 import numpy.typing as npt
 
-from .mwatershed import (  # ty: ignore[unresolved-import]  # compiled extension, no stub yet
+from .mwatershed import (
     agglom_rs,
     cluster,
     cluster_weighted,
 )
-from .mwatershed import (  # ty: ignore[unresolved-import]  # compiled extension, no stub yet
+from .mwatershed import (
     cluster_arrays as _cluster_arrays,
 )
 
