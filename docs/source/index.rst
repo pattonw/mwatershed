@@ -8,6 +8,7 @@ Welcome to mwatershed's documentation!
    install
    tutorials/funlib_comparison
    api
+   benchmarks
    contributing
    authors
 

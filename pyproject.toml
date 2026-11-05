@@ -64,7 +64,7 @@ include = ["mwatershed/py.typed", "mwatershed/mwatershed.pyi"]
 exclude = ["examples/linkage_eval/results.json", "examples/linkage_eval/*.png"]
 
 [tool.ty.src]
-include = ["mwatershed", "tests"]
+include = ["mwatershed", "tests", "benchmarks"]
 exclude = []  # only ever shrinks
 
 [tool.ruff]
