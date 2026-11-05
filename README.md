@@ -103,10 +103,11 @@ The commands below are the ones CI runs, so a green local run means a green PR.
 git clone https://github.com/pattonw/mwatershed
 cd mwatershed
 uv sync                                             # builds the extension (needs Rust) + dev tools
-uv run pytest tests                                 # Python tests with coverage
+uv run pytest                                       # Python tests with coverage
+uv run pytest --no-cov tests/<file>.py              # one file, without the coverage floor
 cargo test                                          # Rust tests
 uv run --only-group dev ruff check . && uv run --only-group dev ruff format --check .
-uv run ty check                                     # types
+uv run ty check --error-on-warning                  # types
 uv run --group docs sphinx-build docs/source docs/build/html -b html
 ```
 

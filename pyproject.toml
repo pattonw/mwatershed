@@ -58,11 +58,13 @@ cache-keys = [{file = "pyproject.toml"}, {file = "Cargo.toml"}, {file = "**/*.rs
 # Uncomment to build rust code in development mode
 # config-settings = { build-args = '--profile=dev' }
 [tool.maturin]
+# The stub and marker make the extension's surface visible to type checkers.
+include = ["mwatershed/py.typed", "mwatershed/mwatershed.pyi"]
 # Generated evaluation outputs live in git for the report but are not shipped.
 exclude = ["examples/linkage_eval/results.json", "examples/linkage_eval/*.png"]
 
 [tool.ty.src]
-include = ["mwatershed", "tests"]
+include = ["mwatershed", "tests", "benchmarks"]
 exclude = []  # only ever shrinks
 
 [tool.ruff]
@@ -77,6 +79,10 @@ ignore = ["E501"]  # the formatter owns line length
 "tutorials/**/*.py" = ["E402"]  # jupytext cells import mid-file
 "examples/**/*.py" = ["E402"]
 "__init__.py" = ["F401"]  # re-exports
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov --cov-report=term-missing"
 
 [tool.coverage.run]
 branch = true
