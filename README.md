@@ -91,7 +91,7 @@ always act as hard constraints regardless of the linkage.
 
 The generic linkages use a contracted-graph priority queue and are several
 times slower than the dedicated mutex watershed path; see
-[`LINKAGE_REPORT.md`](LINKAGE_REPORT.md) for timings
+[`LINKAGE_REPORT.md`](https://github.com/pattonw/mwatershed/blob/main/LINKAGE_REPORT.md) for timings
 (`cargo run --release --example benchmark_linkages`) or run
 `cargo bench` for the Criterion comparison.
 
@@ -108,7 +108,7 @@ uv run pytest --no-cov tests/<file>.py              # one file, without the cove
 cargo test                                          # Rust tests
 uv run --only-group dev ruff check . && uv run --only-group dev ruff format --check .
 uv run ty check --error-on-warning                  # types
-uv run --group docs sphinx-build docs/source docs/build/html -b html
+uv run --group docs sphinx-build -W --keep-going docs/source docs/build/html -b html
 ```
 
 `uv.lock` pins the development environment; the `lock-upgrade` workflow refreshes it monthly and opens a pull request.

@@ -6,7 +6,6 @@ Welcome to mwatershed's documentation!
    :hidden:
 
    install
-   tutorials/funlib_comparison
    api
    benchmarks
    contributing

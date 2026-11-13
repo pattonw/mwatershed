@@ -13,7 +13,7 @@
 import os
 import sys
 
-# Set the path to the Volara package
+# Set the path to the mwatershed package
 sys.path.insert(0, os.path.abspath("../.."))
 
 
@@ -38,9 +38,9 @@ extensions = [
 ]
 
 nbsphinx_custom_formats = {
-    ".py": ["jupytext.reads", {"fmt", "py:percent"}],
+    ".py": ["jupytext.reads", {"fmt": "py:percent"}],
 }
-nbsphinx_kernel_name = "tems_env"
+nbsphinx_kernel_name = "python3"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -48,7 +48,9 @@ templates_path = ["_templates"]
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+# conf.py is excluded because nbsphinx_custom_formats would otherwise read it
+# (a .py file under the source directory) as a notebook page.
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "conf.py"]
 
 # -- Options for HTML output -------------------------------------------------
 
