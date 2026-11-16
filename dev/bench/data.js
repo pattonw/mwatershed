@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794596456606,
+  "lastUpdate": 1794857417890,
   "repoUrl": "https://github.com/pattonw/mwatershed",
   "entries": {
     "mwatershed": [
@@ -68,6 +68,41 @@ window.BENCHMARK_DATA = {
           {
             "name": "pytest wall time",
             "value": 7.281,
+            "unit": "s",
+            "extra": "`uv run pytest` in the tests job"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "William Patton",
+            "username": "pattonw",
+            "email": "wllmpttn24@gmail.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "afafbb1d7f9a338f686cda72c22beb8709a39dde",
+          "message": "Merge pull request #15 from pattonw/fix/uv-ty-standard\n\nRaise the numpy floor to 1.23.2 and test it with a lowest-direct job",
+          "timestamp": "2026-11-16T19:29:08Z",
+          "url": "https://github.com/pattonw/mwatershed/commit/afafbb1d7f9a338f686cda72c22beb8709a39dde"
+        },
+        "date": 1794857417579,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "import mwatershed (cold)",
+            "value": 62.933,
+            "range": "± 9.539",
+            "unit": "ms",
+            "extra": "interpreter startup 8.5 ms subtracted; n=10"
+          },
+          {
+            "name": "pytest wall time",
+            "value": 7.181,
             "unit": "s",
             "extra": "`uv run pytest` in the tests job"
           }
