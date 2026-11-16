@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794857417890,
+  "lastUpdate": 1794859316727,
   "repoUrl": "https://github.com/pattonw/mwatershed",
   "entries": {
     "mwatershed": [
@@ -103,6 +103,41 @@ window.BENCHMARK_DATA = {
           {
             "name": "pytest wall time",
             "value": 7.181,
+            "unit": "s",
+            "extra": "`uv run pytest` in the tests job"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "William Patton",
+            "username": "pattonw",
+            "email": "wllmpttn24@gmail.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "e10d47c0f8eec2a9b8faae7245d82fc2e44cdefe",
+          "message": "Merge pull request #16 from pattonw/chore/action-majors\n\nMove workflow actions to Node 24 majors",
+          "timestamp": "2026-11-16T20:00:25Z",
+          "url": "https://github.com/pattonw/mwatershed/commit/e10d47c0f8eec2a9b8faae7245d82fc2e44cdefe"
+        },
+        "date": 1794859316106,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "import mwatershed (cold)",
+            "value": 55.549,
+            "range": "± 1.627",
+            "unit": "ms",
+            "extra": "interpreter startup 7.1 ms subtracted; n=10"
+          },
+          {
+            "name": "pytest wall time",
+            "value": 1.438,
             "unit": "s",
             "extra": "`uv run pytest` in the tests job"
           }
