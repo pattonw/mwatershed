@@ -8,14 +8,20 @@ jobs:
   test:
     name: py${{ matrix.python-version }} ${{ matrix.resolution }}
     runs-on: ubuntu-latest
+    # Set once for the job: `uv run` re-syncs before it runs, so a mode passed
+    # only to `uv sync` is undone by the tests step.
+    env:
+      UV_RESOLUTION: ${{ matrix.resolution }}
     strategy:
       fail-fast: false
       matrix:
         # requires-python floor and newest
         python-version: ["3.11", "3.14"]
-        # lowest-direct is not run: the numpy>=1.18 floor has no wheels for
-        # these interpreters and the sdist does not build.
         resolution: ["highest"]
+        include:
+          # the declared dependency floors, on the requires-python floor
+          - python-version: "3.11"
+            resolution: "lowest-direct"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
@@ -23,7 +29,11 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
-      - run: uv sync --resolution ${{ matrix.resolution }}
+      - run: uv sync --locked
+        if: matrix.resolution == 'highest'
+      # lowest-direct resolves away from uv.lock by design, so no --locked
+      - run: uv sync
+        if: matrix.resolution == 'lowest-direct'
       - name: tests
         run: |
           start=$(date +%s%N)
